@@ -84,12 +84,17 @@ class EntriesRepository:
         if status_name:
             stmt = stmt.where(Status.display_name == status_name)
         if topic_id:
-            selected_topic_stmt = select(Topic.full_path_ltree).where(Topic.id == topic_id).limit(1)
+            selected_topic_stmt = select(Topic.full_path).where(Topic.id == topic_id).limit(1)
             selected_topic_result = await self.session.execute(selected_topic_stmt)
             selected_topic_path = selected_topic_result.scalar_one_or_none()
             if selected_topic_path is None:
                 return []
-            stmt = stmt.where(Topic.full_path_ltree.op("<@")(selected_topic_path))
+            stmt = stmt.where(
+                or_(
+                    Topic.full_path == selected_topic_path,
+                    Topic.full_path.like(f"{selected_topic_path}.%"),
+                )
+            )
 
         result = await self.session.execute(stmt)
         return [(row[0], row[1], row[2]) for row in result.all()]
