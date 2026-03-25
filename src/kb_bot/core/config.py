@@ -10,9 +10,11 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_user_id: int = Field(alias="TELEGRAM_ALLOWED_USER_ID")
     database_url: str = Field(alias="DATABASE_URL")
+    backup_dir: str = Field(default="backups", alias="BACKUP_DIR")
+    pg_dump_bin: str = Field(default="pg_dump", alias="PG_DUMP_BIN")
+    pg_restore_bin: str = Field(default="pg_restore", alias="PG_RESTORE_BIN")
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

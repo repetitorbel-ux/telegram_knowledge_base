@@ -20,6 +20,7 @@
 - [x] Implement saved views (collections) create/list/run
 - [x] Implement import flow (CSV/JSON + ImportJob)
 - [x] Implement export flow (CSV/JSON + ExportJob)
+- [x] Implement backup/restore flow with BackupRecord
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -34,4 +35,5 @@
   - [x] Collection command parsing
   - [x] Import parsing and import jobs migration
   - [x] Export parsing and export jobs migration
+  - [x] Backup parsing and backup records migration
 - [x] Update README

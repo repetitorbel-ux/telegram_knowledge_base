@@ -2,6 +2,7 @@ from aiogram import Router
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.bot.handlers.add import create_add_router
+from kb_bot.bot.handlers.backup_restore import create_backup_restore_router
 from kb_bot.bot.handlers.collections import create_collections_router
 from kb_bot.bot.handlers.entry import create_entry_router
 from kb_bot.bot.handlers.forward_save import create_forward_save_router
@@ -27,4 +28,5 @@ def build_router(session_factory: async_sessionmaker) -> Router:
     router.include_router(create_forward_save_router(session_factory))
     router.include_router(create_collections_router(session_factory))
     router.include_router(create_import_router(session_factory))
+    router.include_router(create_backup_restore_router(session_factory))
     return router

@@ -19,6 +19,7 @@ Single-user Telegram KB bot MVP skeleton.
   - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
   - CSV/JSON import via Telegram document (`/import`)
   - CSV/JSON export via `/export` with filters
+  - Backup/restore flow (`/backup`, `/backups`, `/restore_token`, `/restore`)
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
 - SQLAlchemy async setup + Alembic migration

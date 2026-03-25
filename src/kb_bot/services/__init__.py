@@ -1,3 +1,4 @@
+from kb_bot.services.backup_service import BackupService
 from kb_bot.services.collection_service import CollectionService
 from kb_bot.services.entry_service import EntryService, CreateManualEntryPayload
 from kb_bot.services.export_service import ExportService

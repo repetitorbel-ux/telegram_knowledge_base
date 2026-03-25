@@ -1,4 +1,5 @@
 from kb_bot.db.orm.base import Base
+from kb_bot.db.orm.backup import BackupRecord
 from kb_bot.db.orm.entry import KnowledgeEntry
 from kb_bot.db.orm.jobs import ExportJob, ImportJob
 from kb_bot.db.orm.saved_view import SavedView
@@ -10,6 +11,7 @@ __all__ = [
     "Base",
     "KnowledgeEntry",
     "KnowledgeEntryTag",
+    "BackupRecord",
     "ExportJob",
     "ImportJob",
     "SavedView",
