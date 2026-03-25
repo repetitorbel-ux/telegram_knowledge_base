@@ -14,6 +14,8 @@
 - [x] Implement `/status <entry_uuid> <status name>` and status transition rules
 - [x] Implement `/entry <entry_uuid>` details command
 - [x] Implement `/list` command with filters (status/topic/limit)
+- [x] Implement topic management commands (`/topic_add`, `/topic_rename`)
+- [x] Support topic subtree filtering in `/list topic=<uuid>`
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -23,4 +25,5 @@
   - [x] Search query parsing
   - [x] Status parsing and transition rules
   - [x] Entry and list parsing
+  - [x] Topic parsing and slug rules
 - [x] Update README

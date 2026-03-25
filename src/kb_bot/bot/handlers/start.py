@@ -16,5 +16,7 @@ async def start_handler(message: Message) -> None:
         "/search <query> - search entries\n"
         "/status <entry_uuid> <status name> - update entry status\n"
         "/entry <entry_uuid> - show entry details\n"
-        "/list [status=New] [topic=<uuid>] [limit=20] - list entries"
+        "/list [status=New] [topic=<uuid>] [limit=20] - list entries\n"
+        "/topic_add <name> OR /topic_add <parent_uuid|root> <name>\n"
+        "/topic_rename <topic_uuid> <new_name>"
     )

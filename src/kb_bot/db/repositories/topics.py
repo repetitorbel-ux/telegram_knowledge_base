@@ -24,3 +24,18 @@ class TopicsRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def create(self, topic: Topic) -> Topic:
+        self.session.add(topic)
+        await self.session.flush()
+        await self.session.refresh(topic)
+        return topic
+
+    async def get_by_full_path(self, full_path: str) -> Topic | None:
+        stmt = select(Topic).where(Topic.full_path == full_path).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list_descendants(self, prefix: str) -> list[Topic]:
+        stmt = select(Topic).where(Topic.full_path.like(f"{prefix}.%"))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

@@ -22,3 +22,7 @@ class StatusNotFoundError(DomainError):
 
 class InvalidStatusTransitionError(DomainError):
     pass
+
+
+class TopicConflictError(DomainError):
+    pass

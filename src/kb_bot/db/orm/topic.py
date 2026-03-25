@@ -18,6 +18,7 @@ class Topic(Base):
         UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True
     )
     full_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    full_path_ltree: Mapped[str] = mapped_column(Text, nullable=False)
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -26,4 +27,3 @@ class Topic(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
-
