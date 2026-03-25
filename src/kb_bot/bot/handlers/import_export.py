@@ -2,14 +2,17 @@ import io
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from kb_bot.core.export_parsing import parse_export_format
 from kb_bot.core.import_parsing import detect_import_format
+from kb_bot.core.list_parsing import ListFilters, parse_list_command
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.jobs import JobsRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
+from kb_bot.services.export_service import ExportService
 from kb_bot.services.import_service import ImportService
 
 
@@ -59,5 +62,27 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
             f"Errors: {result.error_records}"
         )
 
-    return router
+    @router.message(Command("export"))
+    async def export_handler(message: Message) -> None:
+        export_format = parse_export_format(message.text)
+        parsed = parse_list_command(message.text)
+        filters = ListFilters(
+            status_name=parsed.status_name,
+            topic_id=parsed.topic_id,
+            limit=parsed.limit,
+        )
+        async with session_factory() as session:
+            service = ExportService(
+                jobs_repo=JobsRepository(session),
+                entries_repo=EntriesRepository(session),
+                session=session,
+            )
+            result = await service.export_entries(export_format=export_format, filters=filters)
 
+        file = BufferedInputFile(result.content, filename=result.filename)
+        await message.answer_document(
+            file,
+            caption=f"Export done. Job `{result.job_id}` records={result.total_records}",
+        )
+
+    return router
