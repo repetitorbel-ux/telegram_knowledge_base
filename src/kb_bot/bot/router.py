@@ -11,6 +11,7 @@ from kb_bot.bot.handlers.list_entries import create_list_router
 from kb_bot.bot.handlers.search import create_search_router
 from kb_bot.bot.handlers.start import router as start_router
 from kb_bot.bot.handlers.status import create_status_router
+from kb_bot.bot.handlers.stats import create_stats_router
 from kb_bot.bot.handlers.topic_manage import create_topic_manage_router
 from kb_bot.bot.handlers.topics import create_topics_router
 
@@ -29,4 +30,5 @@ def build_router(session_factory: async_sessionmaker) -> Router:
     router.include_router(create_collections_router(session_factory))
     router.include_router(create_import_router(session_factory))
     router.include_router(create_backup_restore_router(session_factory))
+    router.include_router(create_stats_router(session_factory))
     return router

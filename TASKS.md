@@ -21,6 +21,7 @@
 - [x] Implement import flow (CSV/JSON + ImportJob)
 - [x] Implement export flow (CSV/JSON + ExportJob)
 - [x] Implement backup/restore flow with BackupRecord
+- [x] Implement stats dashboard (`/stats`)
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -36,4 +37,5 @@
   - [x] Import parsing and import jobs migration
   - [x] Export parsing and export jobs migration
   - [x] Backup parsing and backup records migration
+  - [x] Stats service and handler
 - [x] Update README
