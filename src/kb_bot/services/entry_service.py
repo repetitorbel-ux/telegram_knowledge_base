@@ -1,0 +1,80 @@
+import uuid
+from dataclasses import dataclass
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from kb_bot.core.dedup import compute_dedup_hash
+from kb_bot.core.url_normalization import normalize_url
+from kb_bot.db.orm.entry import KnowledgeEntry
+from kb_bot.db.repositories.entries import EntriesRepository
+from kb_bot.db.repositories.statuses import StatusesRepository
+from kb_bot.db.repositories.topics import TopicsRepository
+from kb_bot.domain.dto import EntryDTO
+from kb_bot.domain.errors import DuplicateEntryError, TopicNotFoundError
+
+
+@dataclass(slots=True)
+class CreateManualEntryPayload:
+    title: str
+    primary_topic_id: uuid.UUID
+    original_url: str | None = None
+    notes: str | None = None
+    description: str | None = None
+
+
+class EntryService:
+    def __init__(
+        self,
+        session: AsyncSession,
+        entries_repo: EntriesRepository,
+        topics_repo: TopicsRepository,
+        statuses_repo: StatusesRepository,
+    ) -> None:
+        self.session = session
+        self.entries_repo = entries_repo
+        self.topics_repo = topics_repo
+        self.statuses_repo = statuses_repo
+
+    async def create_manual(self, payload: CreateManualEntryPayload) -> EntryDTO:
+        title = payload.title.strip()
+        if not title:
+            raise ValueError("title is required")
+
+        topic = await self.topics_repo.get(payload.primary_topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        normalized_url = normalize_url(payload.original_url)
+        dedup_hash = compute_dedup_hash(normalized_url, title, payload.notes)
+        if await self.entries_repo.exists_by_dedup_hash(dedup_hash):
+            raise DuplicateEntryError(dedup_hash)
+
+        status = await self.statuses_repo.get_by_display_name("New")
+        if status is None:
+            raise RuntimeError("Default status 'New' is not seeded")
+
+        entry = KnowledgeEntry(
+            title=title,
+            original_url=payload.original_url,
+            normalized_url=normalized_url,
+            description=payload.description,
+            notes=payload.notes,
+            primary_topic_id=payload.primary_topic_id,
+            status_id=status.id,
+            dedup_hash=dedup_hash,
+        )
+        await self.entries_repo.create(entry)
+        await self.session.commit()
+        await self.session.refresh(entry)
+
+        return EntryDTO(
+            id=entry.id,
+            title=entry.title,
+            original_url=entry.original_url,
+            normalized_url=entry.normalized_url,
+            primary_topic_id=entry.primary_topic_id,
+            status_name=status.display_name,
+            notes=entry.notes,
+            saved_date=entry.saved_date,
+        )
+

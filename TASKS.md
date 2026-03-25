@@ -1,0 +1,20 @@
+# Phase 1 Tasks
+
+- [x] Initialize local repository
+- [x] Create feature branch `feature/tg-kb-mvp-phase1`
+- [x] Add project skeleton and configuration files
+- [x] Implement base config/logging/auth modules
+- [x] Add SQLAlchemy async engine/session
+- [x] Add Alembic environment and initial migration
+- [x] Add seed data for statuses and root topics
+- [x] Implement `TopicService.list_tree()`
+- [x] Implement `EntryService.create_manual(payload)`
+- [x] Implement `/start`, `/topics`, `/add` handlers
+- [x] Add tests:
+  - [x] URL normalization
+  - [x] Dedup hash
+  - [x] Migration and seed presence
+  - [x] Entry service create and duplicate behavior
+  - [x] Basic bot flow helper checks
+- [x] Update README
+
