@@ -10,6 +10,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/start`
   - `/topics`
   - `/add` (FSM: content -> title -> topic UUID -> save)
+  - `/search <query>` (search in title/description/notes)
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
 - SQLAlchemy async setup + Alembic migration
@@ -47,8 +48,6 @@ Single-user Telegram KB bot MVP skeleton.
 
 ## Current scope limits
 
-- No `/search`
 - No forwarded-message ingest flow yet
 - No import/export and backup/restore
 - No webhook mode (long polling only)
-

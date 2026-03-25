@@ -12,6 +12,6 @@ async def start_handler(message: Message) -> None:
         "Commands:\n"
         "/start - health and help\n"
         "/topics - list available topics\n"
-        "/add - add URL or note entry"
+        "/add - add URL or note entry\n"
+        "/search <query> - search entries"
     )
-

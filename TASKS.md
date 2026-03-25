@@ -10,11 +10,12 @@
 - [x] Implement `TopicService.list_tree()`
 - [x] Implement `EntryService.create_manual(payload)`
 - [x] Implement `/start`, `/topics`, `/add` handlers
+- [x] Implement `/search <query>` handler and search service
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
   - [x] Migration and seed presence
   - [x] Entry service create and duplicate behavior
   - [x] Basic bot flow helper checks
+  - [x] Search query parsing
 - [x] Update README
-

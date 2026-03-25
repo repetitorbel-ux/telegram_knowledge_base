@@ -1,7 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kb_bot.db.orm.entry import KnowledgeEntry
+from kb_bot.db.orm.status import Status
 
 
 class EntriesRepository:
@@ -19,3 +20,20 @@ class EntriesRepository:
         await self.session.refresh(entry)
         return entry
 
+    async def search(self, query: str, limit: int = 10) -> list[tuple[KnowledgeEntry, str]]:
+        pattern = f"%{query.strip()}%"
+        stmt = (
+            select(KnowledgeEntry, Status.display_name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .where(
+                or_(
+                    KnowledgeEntry.title.ilike(pattern),
+                    KnowledgeEntry.description.ilike(pattern),
+                    KnowledgeEntry.notes.ilike(pattern),
+                )
+            )
+            .order_by(KnowledgeEntry.saved_date.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return [(row[0], row[1]) for row in result.all()]
