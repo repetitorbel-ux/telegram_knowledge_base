@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kb_bot.db.orm.entry import KnowledgeEntry
 from kb_bot.db.orm.status import Status
+from kb_bot.db.orm.topic import Topic
 
 
 class EntriesRepository:
@@ -52,3 +53,38 @@ class EntriesRepository:
         if row is None:
             return None
         return row[0], row[1]
+
+    async def get_detail(self, entry_id: uuid.UUID) -> tuple[KnowledgeEntry, str, str] | None:
+        stmt = (
+            select(KnowledgeEntry, Status.display_name, Topic.name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .join(Topic, Topic.id == KnowledgeEntry.primary_topic_id)
+            .where(KnowledgeEntry.id == entry_id)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        row = result.first()
+        if row is None:
+            return None
+        return row[0], row[1], row[2]
+
+    async def list_entries(
+        self,
+        status_name: str | None = None,
+        topic_id: uuid.UUID | None = None,
+        limit: int = 20,
+    ) -> list[tuple[KnowledgeEntry, str, str]]:
+        stmt = (
+            select(KnowledgeEntry, Status.display_name, Topic.name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .join(Topic, Topic.id == KnowledgeEntry.primary_topic_id)
+            .order_by(KnowledgeEntry.saved_date.desc())
+            .limit(limit)
+        )
+        if status_name:
+            stmt = stmt.where(Status.display_name == status_name)
+        if topic_id:
+            stmt = stmt.where(KnowledgeEntry.primary_topic_id == topic_id)
+
+        result = await self.session.execute(stmt)
+        return [(row[0], row[1], row[2]) for row in result.all()]

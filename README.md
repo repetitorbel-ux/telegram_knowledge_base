@@ -12,6 +12,8 @@ Single-user Telegram KB bot MVP skeleton.
   - `/add` (FSM: content -> title -> topic UUID -> save)
   - `/search <query>` (search in title/description/notes)
   - `/status <entry_uuid> <status name>` with transition validation
+  - `/entry <entry_uuid>` (entry card/details)
+  - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
 - SQLAlchemy async setup + Alembic migration

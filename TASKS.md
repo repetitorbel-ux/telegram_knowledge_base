@@ -12,6 +12,8 @@
 - [x] Implement `/start`, `/topics`, `/add` handlers
 - [x] Implement `/search <query>` handler and search service
 - [x] Implement `/status <entry_uuid> <status name>` and status transition rules
+- [x] Implement `/entry <entry_uuid>` details command
+- [x] Implement `/list` command with filters (status/topic/limit)
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -20,4 +22,5 @@
   - [x] Basic bot flow helper checks
   - [x] Search query parsing
   - [x] Status parsing and transition rules
+  - [x] Entry and list parsing
 - [x] Update README

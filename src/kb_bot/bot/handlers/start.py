@@ -14,5 +14,7 @@ async def start_handler(message: Message) -> None:
         "/topics - list available topics\n"
         "/add - add URL or note entry\n"
         "/search <query> - search entries\n"
-        "/status <entry_uuid> <status name> - update entry status"
+        "/status <entry_uuid> <status name> - update entry status\n"
+        "/entry <entry_uuid> - show entry details\n"
+        "/list [status=New] [topic=<uuid>] [limit=20] - list entries"
     )
