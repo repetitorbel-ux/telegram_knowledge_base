@@ -17,6 +17,7 @@
 - [x] Implement topic management commands (`/topic_add`, `/topic_rename`)
 - [x] Support topic subtree filtering in `/list topic=<uuid>`
 - [x] Implement forward-save handler for forwarded Telegram messages
+- [x] Implement saved views (collections) create/list/run
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -28,4 +29,5 @@
   - [x] Entry and list parsing
   - [x] Topic parsing and slug rules
   - [x] Forward parsing helpers
+  - [x] Collection command parsing
 - [x] Update README

@@ -19,5 +19,8 @@ async def start_handler(message: Message) -> None:
         "/list [status=New] [topic=<uuid>] [limit=20] - list entries\n"
         "/topic_add <name> OR /topic_add <parent_uuid|root> <name>\n"
         "/topic_rename <topic_uuid> <new_name>\n"
+        "/collection_add <name> [status=...] [topic=...] [limit=...]\n"
+        "/collections\n"
+        "/collection_run <collection_uuid>\n"
         "Forward any Telegram message to save it automatically"
     )

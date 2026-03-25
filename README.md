@@ -16,6 +16,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
   - `/topic_add` and `/topic_rename` for dynamic topic tree edits
   - Forward message auto-save to default topic `Useful Channels`
+  - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
 - SQLAlchemy async setup + Alembic migration
