@@ -11,6 +11,7 @@
 - [x] Implement `EntryService.create_manual(payload)`
 - [x] Implement `/start`, `/topics`, `/add` handlers
 - [x] Implement `/search <query>` handler and search service
+- [x] Implement `/status <entry_uuid> <status name>` and status transition rules
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -18,4 +19,5 @@
   - [x] Entry service create and duplicate behavior
   - [x] Basic bot flow helper checks
   - [x] Search query parsing
+  - [x] Status parsing and transition rules
 - [x] Update README

@@ -11,3 +11,14 @@ class DuplicateEntryError(DomainError):
 class TopicNotFoundError(DomainError):
     pass
 
+
+class EntryNotFoundError(DomainError):
+    pass
+
+
+class StatusNotFoundError(DomainError):
+    pass
+
+
+class InvalidStatusTransitionError(DomainError):
+    pass

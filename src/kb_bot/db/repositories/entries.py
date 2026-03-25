@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,3 +39,16 @@ class EntriesRepository:
         )
         result = await self.session.execute(stmt)
         return [(row[0], row[1]) for row in result.all()]
+
+    async def get_with_status(self, entry_id: uuid.UUID) -> tuple[KnowledgeEntry, str] | None:
+        stmt = (
+            select(KnowledgeEntry, Status.display_name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .where(KnowledgeEntry.id == entry_id)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        row = result.first()
+        if row is None:
+            return None
+        return row[0], row[1]

@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,3 +15,7 @@ class StatusesRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_id(self, status_id: uuid.UUID) -> Status | None:
+        stmt = select(Status).where(Status.id == status_id).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
