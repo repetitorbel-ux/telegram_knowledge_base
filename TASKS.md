@@ -18,6 +18,7 @@
 - [x] Support topic subtree filtering in `/list topic=<uuid>`
 - [x] Implement forward-save handler for forwarded Telegram messages
 - [x] Implement saved views (collections) create/list/run
+- [x] Implement import flow (CSV/JSON + ImportJob)
 - [x] Add tests:
   - [x] URL normalization
   - [x] Dedup hash
@@ -30,4 +31,5 @@
   - [x] Topic parsing and slug rules
   - [x] Forward parsing helpers
   - [x] Collection command parsing
+  - [x] Import parsing and import jobs migration
 - [x] Update README

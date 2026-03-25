@@ -22,5 +22,6 @@ async def start_handler(message: Message) -> None:
         "/collection_add <name> [status=...] [topic=...] [limit=...]\n"
         "/collections\n"
         "/collection_run <collection_uuid>\n"
+        "/import (then send .csv/.json document with caption /import)\n"
         "Forward any Telegram message to save it automatically"
     )
