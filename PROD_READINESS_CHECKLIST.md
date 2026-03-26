@@ -62,9 +62,9 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 ## 6) CI/CD & Quality Gates
 
 - [x] CI workflow exists for migrations + tests (`.github/workflows/ci.yml`).
-- [ ] Branch protection for `main` enabled (PR required, no direct pushes).
-- [ ] Required checks configured on PR merge.
-- [ ] Release notes/changelog convention agreed.
+- [~] Branch protection for `main` enabled (PR required, no direct pushes) - blocked by current GitHub plan for private repo.
+- [~] Required checks configured on PR merge - blocked together with branch protection on current plan.
+- [x] Release notes/changelog convention agreed.
 
 ## 7) Security & Access
 
@@ -123,6 +123,16 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Minimal health check procedure documented
 - Evidence: `docs/DEPLOY_RUNBOOK.md` (post-deploy Telegram smoke commands)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Branch protection setup attempt
+- Evidence: `gh api repos/repetitorbel-ux/telegram_knowledge_base/branches/main/protection` -> HTTP 403 (requires GitHub Pro or public repository)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Release notes/changelog convention agreed
+- Evidence: `docs/RELEASE_NOTES_POLICY.md`, `CHANGELOG.md`
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
