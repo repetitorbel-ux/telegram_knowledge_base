@@ -201,6 +201,16 @@ Use this section to record proof links and timestamps.
 - Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> `SECTION2_ENV_CHECK: PASS`
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Full local regression tests
+- Evidence: `python -m pytest -q` -> `43 passed`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Local runtime start check from current runner
+- Evidence: `python -m kb_bot.main` still fails in this restricted session (`ConnectionError: Unexpected peer connection`), run directly in normal local terminal to validate Telegram polling runtime
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:

@@ -1,5 +1,27 @@
 import asyncio
 import logging
+import os
+from pathlib import Path
+
+def _sanitize_sslkeylogfile() -> None:
+    value = os.environ.get("SSLKEYLOGFILE")
+    if not value:
+        return
+    if os.name == "nt":
+        os.environ.pop("SSLKEYLOGFILE", None)
+        return
+
+    target = Path(value)
+    parent = target.parent if target.parent != Path("") else Path(".")
+    parent_writable = parent.exists() and os.access(parent, os.W_OK)
+    file_writable = (target.exists() and os.access(target, os.W_OK)) or (
+        not target.exists() and parent_writable
+    )
+    if not file_writable:
+        os.environ.pop("SSLKEYLOGFILE", None)
+
+
+_sanitize_sslkeylogfile()
 
 from aiogram import Bot, Dispatcher
 
@@ -38,4 +60,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
