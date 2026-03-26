@@ -56,6 +56,11 @@ Single-user Telegram KB bot MVP skeleton.
 
 - `python -m pytest -q`
 
+## Operations
+
+- Restore safety checklist and procedure:
+  - `docs/RESTORE_RUNBOOK.md`
+
 ## Current scope limits
 
 - No forwarded-message ingest flow yet
