@@ -1,5 +1,6 @@
 import types
 import uuid
+from collections.abc import Coroutine
 from unittest.mock import AsyncMock
 
 import pytest
@@ -7,47 +8,73 @@ import pytest
 from kb_bot.domain.errors import DuplicateEntryError, TopicNotFoundError
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 
-pytestmark = pytest.mark.skip(reason="Sandbox event loop restrictions on this runner")
+
+def run_coroutine(coroutine: Coroutine[object, object, object]) -> object:
+    while True:
+        try:
+            coroutine.send(None)
+        except StopIteration as done:
+            return done.value
 
 
 def test_create_manual_success() -> None:
+    topic_id = uuid.uuid4()
     session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
     entries_repo = types.SimpleNamespace(exists_by_dedup_hash=AsyncMock(return_value=False), create=AsyncMock())
-    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4())))
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=topic_id)))
     statuses_repo = types.SimpleNamespace(
         get_by_display_name=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4(), display_name="New"))
     )
 
     service = EntryService(session, entries_repo, topics_repo, statuses_repo)
-    payload = CreateManualEntryPayload(title="Entry", primary_topic_id=uuid.uuid4(), original_url="https://x.com")
+    payload = CreateManualEntryPayload(title=" Entry ", primary_topic_id=topic_id, original_url="https://x.com")
 
-    assert service.create_manual(payload) is not None
+    result = run_coroutine(service.create_manual(payload))
 
-    session.commit.assert_awaited_once()
+    assert result.title == "Entry"
+    assert result.original_url == "https://x.com"
+    assert result.normalized_url == "https://x.com/"
+    assert result.primary_topic_id == topic_id
+    assert result.status_name == "New"
+
+    topics_repo.get.assert_awaited_once_with(topic_id)
+    entries_repo.exists_by_dedup_hash.assert_awaited_once()
     entries_repo.create.assert_awaited_once()
+    session.commit.assert_awaited_once()
+    session.refresh.assert_awaited_once()
 
 
 def test_create_manual_duplicate() -> None:
+    topic_id = uuid.uuid4()
     session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
     entries_repo = types.SimpleNamespace(exists_by_dedup_hash=AsyncMock(return_value=True), create=AsyncMock())
-    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4())))
-    statuses_repo = types.SimpleNamespace(
-        get_by_display_name=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4(), display_name="New"))
-    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=topic_id)))
+    statuses_repo = types.SimpleNamespace(get_by_display_name=AsyncMock())
     service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+    payload = CreateManualEntryPayload(title="Entry", primary_topic_id=topic_id, original_url="https://x.com")
 
     with pytest.raises(DuplicateEntryError):
-        raise DuplicateEntryError("dummy")
+        run_coroutine(service.create_manual(payload))
+
+    entries_repo.create.assert_not_awaited()
+    statuses_repo.get_by_display_name.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
 
 
 def test_create_manual_invalid_topic() -> None:
     session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
     entries_repo = types.SimpleNamespace(exists_by_dedup_hash=AsyncMock(return_value=False), create=AsyncMock())
     topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=None))
-    statuses_repo = types.SimpleNamespace(
-        get_by_display_name=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4(), display_name="New"))
-    )
+    statuses_repo = types.SimpleNamespace(get_by_display_name=AsyncMock())
     service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+    payload = CreateManualEntryPayload(title="Entry", primary_topic_id=uuid.uuid4(), original_url="https://x.com")
 
     with pytest.raises(TopicNotFoundError):
-        raise TopicNotFoundError("dummy")
+        run_coroutine(service.create_manual(payload))
+
+    entries_repo.exists_by_dedup_hash.assert_not_awaited()
+    entries_repo.create.assert_not_awaited()
+    statuses_repo.get_by_display_name.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()

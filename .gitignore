@@ -11,4 +11,6 @@ htmlcov/
 .DS_Store
 alembic.ini.bak
 postgres_data/
-
+.e2e.alembic.ini
+.e2e_pgdata/
+*.egg-info/
