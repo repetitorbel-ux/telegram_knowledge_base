@@ -76,6 +76,11 @@ Single-user Telegram KB bot MVP skeleton.
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
 
+## Release Notes
+
+- `CHANGELOG.md`
+- `docs/RELEASE_NOTES_POLICY.md`
+
 ## Current scope limits
 
 - No forwarded-message ingest flow yet
