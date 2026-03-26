@@ -16,6 +16,7 @@ This document defines the production deployment target for `telegram-kb-bot`.
 - `postgres` (stateful container)
   - PostgreSQL 16
   - persistent volume for DB data
+  - local compose mapping uses host port `55433` -> container `5432`
 
 ## Required Environment Variables
 
