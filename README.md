@@ -39,6 +39,7 @@ Single-user Telegram KB bot MVP skeleton.
 
 1. Copy env file:
    - `copy .env.example .env`
+   - production: `copy env.production.example .env` and set real secrets
 2. Fill in:
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_ALLOWED_USER_ID`
@@ -65,9 +66,13 @@ Single-user Telegram KB bot MVP skeleton.
 
 - Pre-go-live checklist:
   - `PROD_READINESS_CHECKLIST.md`
+- Deployment target definition:
+  - `DEPLOYMENT_TARGET.md`
 
 ## Operations
 
+- Deploy procedure and release smoke:
+  - `docs/DEPLOY_RUNBOOK.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
 
