@@ -56,6 +56,11 @@ Single-user Telegram KB bot MVP skeleton.
 
 - `python -m pytest -q`
 
+## Git Process
+
+- Team git cycle for this repository:
+  - `GIT_WORKFLOW.md`
+
 ## Operations
 
 - Restore safety checklist and procedure:
