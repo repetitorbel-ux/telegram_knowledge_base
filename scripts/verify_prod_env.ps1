@@ -1,6 +1,9 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$EnvFilePath = "/etc/tg_kb/.env"
+    [string]$EnvFilePath = "./.env",
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("local", "production")]
+    [string]$Mode = "local"
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +42,7 @@ function Read-EnvFile {
 $HasFailures = $false
 Write-Host "SECTION2_ENV_CHECK: START"
 Write-Host "Env file: $EnvFilePath"
+Write-Host "Mode: $Mode"
 
 if (-not (Test-Path -LiteralPath $EnvFilePath)) {
     Add-Failure "Env file not found"
@@ -88,10 +92,12 @@ if ($envMap.ContainsKey("DATABASE_URL")) {
     $dbUrl = $envMap["DATABASE_URL"]
     if ($dbUrl -match "__DB_USER__|__DB_PASSWORD__|__DB_HOST__|__DB_NAME__") {
         Add-Failure "DATABASE_URL still has placeholder fragments"
-    } elseif ($dbUrl -match "localhost|127\.0\.0\.1|/test($|[/?])|_test($|[/?])") {
-        Add-Failure "DATABASE_URL looks local/test-like"
+    } elseif ($dbUrl -match "/test($|[/?])|_test($|[/?])") {
+        Add-Failure "DATABASE_URL looks test-like"
+    } elseif ($Mode -eq "production" -and $dbUrl -match "localhost|127\.0\.0\.1") {
+        Add-Failure "DATABASE_URL looks local-like for production mode"
     } else {
-        Add-Pass "DATABASE_URL looks production-like"
+        Add-Pass "DATABASE_URL format is valid for selected mode"
     }
 }
 

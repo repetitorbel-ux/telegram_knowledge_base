@@ -4,9 +4,9 @@ This runbook defines the practical release flow for `telegram-kb-bot`.
 
 ## Preconditions
 
-- Target host has Docker Engine and Docker Compose installed.
-- `main` branch is up to date on target host.
-- `.env` exists and contains production values (from `env.production.example` template).
+- Local machine has Docker Desktop/Engine and Docker Compose installed.
+- `main` branch is up to date locally.
+- `.env` exists and contains local values (`.env.example` or `env.production.example` as template).
 - Python 3.12+ and project dependencies are available.
 
 ## Release Command (Smoke Flow)
@@ -29,13 +29,13 @@ If Docker is not running or inaccessible, the command fails fast with non-zero e
 
 After successful smoke:
 
-1. restart bot process (`python -m kb_bot.main`) using your process supervisor
+1. restart bot process (`python -m kb_bot.main`) with your local run method
 2. run Telegram smoke checks:
    - `/start`
    - `/stats`
    - `/list limit=5`
 
-Production baseline for runtime supervision/logging/alerts is documented in:
+Optional Linux production profile for runtime supervision/logging/alerts is documented in:
 
 - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
 

@@ -1,12 +1,11 @@
 # Secrets & Configuration Runbook
 
-This runbook defines how Section 2 ("Configuration & Secrets") is executed on the production host.
+This runbook defines how Section 2 ("Configuration & Secrets") is executed in local mode.
 
 ## Secret Storage Standard
 
-- Production secrets are stored only in host file: `/etc/tg_kb/.env`.
-- Ownership: `tgkb:tgkb` (or dedicated service user/group).
-- Permissions: `600` (read/write for owner only).
+- Local secrets are stored in repo-local `.env` (ignored by git).
+- Optional Linux profile: secrets can be stored in `/etc/tg_kb/.env` with restrictive permissions.
 - The `.env` file is never committed to git and never copied into docs/chats.
 
 ## Required Variables
@@ -20,10 +19,16 @@ This runbook defines how Section 2 ("Configuration & Secrets") is executed on th
 
 ## Validation Procedure (Section 2)
 
-Run on production host:
+Run in local repo root:
+
+```powershell
+pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local
+```
+
+Optional Linux profile:
 
 ```bash
-pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env
+pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env -Mode production
 ```
 
 Expected result:
@@ -35,20 +40,20 @@ This command validates:
 
 - no placeholder values are left
 - `TELEGRAM_ALLOWED_USER_ID` has numeric format
-- `DATABASE_URL` is not local/test-like
+- `DATABASE_URL` is not test-like and has no placeholders
 - backup configuration and postgres binaries are available
 
 ## Secret Rotation Policy
 
-- Owner: on-call operator (primary) + repository owner (backup approver)
+- Owner: local operator (you)
 - Rotation cadence:
   - `TELEGRAM_BOT_TOKEN`: every 90 days or immediately after suspected leak
   - DB password in `DATABASE_URL`: every 90 days or immediately after suspected leak
 - Validation after each rotation:
-  - update `/etc/tg_kb/.env`
+  - update local `.env`
   - restart bot process
   - run Telegram smoke: `/start`, `/stats`, `/list limit=5`
-  - run `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
+  - run `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`
   - record evidence in `PROD_READINESS_CHECKLIST.md` (date, operator, command result)
 
 ## Evidence Format

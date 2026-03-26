@@ -63,20 +63,20 @@ Single-user Telegram KB bot MVP skeleton.
 - Team git cycle for this repository:
   - `GIT_WORKFLOW.md`
 
-## Production Readiness
+## Readiness
 
-- Pre-go-live checklist:
+- Local-first readiness checklist:
   - `PROD_READINESS_CHECKLIST.md`
 - Section 5 UAT execution template:
   - `docs/UAT_SECTION5_TEMPLATE.md`
-- Deployment target definition:
+- Deployment target definition (local-first):
   - `DEPLOYMENT_TARGET.md`
 
 ## Operations
 
 - Deploy procedure and release smoke:
   - `docs/DEPLOY_RUNBOOK.md`
-- Runtime reliability (systemd/logging/alerts/reboot checks):
+- Runtime reliability (optional Linux profile: systemd/logging/alerts/reboot checks):
   - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`

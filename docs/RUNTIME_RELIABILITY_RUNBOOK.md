@@ -1,6 +1,7 @@
 # Runtime Reliability Runbook
 
-This runbook covers checklist Section 4 for production runtime reliability.
+This runbook describes an optional Linux/VPS runtime profile for checklist Section 4.  
+It is not required for local-only Windows usage.
 
 ## Scope
 
