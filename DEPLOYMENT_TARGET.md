@@ -58,3 +58,4 @@ Production-safe template file:
 - Keep `.env` and any secrets out of git.
 - Use least-privilege DB credentials for production.
 - Use `docs/DEPLOY_RUNBOOK.md` for release command and rollback routine.
+- Use `docs/SECRETS_RUNBOOK.md` for Section 2 validation and rotation procedure.

@@ -76,6 +76,8 @@ Single-user Telegram KB bot MVP skeleton.
   - `docs/DEPLOY_RUNBOOK.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
+- Secrets and configuration validation flow:
+  - `docs/SECRETS_RUNBOOK.md`
 
 ## Release Notes
 

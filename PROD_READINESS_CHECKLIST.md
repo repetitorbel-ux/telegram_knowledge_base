@@ -26,11 +26,13 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 ## 2) Configuration & Secrets
 
-- [ ] `TELEGRAM_BOT_TOKEN` is stored in secure secret storage.
-- [ ] `TELEGRAM_ALLOWED_USER_ID` is set correctly for production user.
-- [ ] `DATABASE_URL` points to production DB (not local, not test).
-- [ ] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` verified on target host.
-- [ ] Secret rotation plan exists (who rotates, how often, how validated).
+- [~] `TELEGRAM_BOT_TOKEN` secure storage location defined (`/etc/tg_kb/.env`) and pending host validation.
+- [~] `TELEGRAM_ALLOWED_USER_ID` is set correctly for production user (pending host validation).
+- [~] `DATABASE_URL` points to production DB (not local, not test) (pending host validation).
+- [~] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` verified on target host (validation script prepared).
+- [x] Secret rotation plan exists (who rotates, how often, how validated).
+- Section 2 close command on target host: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
+- Section 2 close criteria: command returns `SECTION2_ENV_CHECK: PASS`, then mark remaining Section 2 items as `[x]`.
 
 ## 3) Database & Data Safety
 
@@ -150,6 +152,16 @@ Use this section to record proof links and timestamps.
 - Evidence: `docs/RELEASE_NOTES_POLICY.md`, `CHANGELOG.md`
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Section 2 secret storage and rotation policy documented
+- Evidence: `docs/SECRETS_RUNBOOK.md` (storage path, permissions, rotation cadence, validation flow)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 host validation command prepared
+- Evidence: `scripts/verify_prod_env.ps1`; run on target host: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -162,6 +174,6 @@ Use this section to record proof links and timestamps.
 
 ## Next Session Priority
 
-1. Close Section 2 (Configuration & Secrets) with concrete evidence entries.
+1. Run Section 2 host validation command on production host and mark remaining Section 2 items `[x]`.
 2. Run Section 5 UAT on target environment and record results.
 3. Implement remaining Runtime Reliability controls (supervision/logging/alerts).
