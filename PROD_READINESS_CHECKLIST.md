@@ -159,3 +159,9 @@ Use this section to record proof links and timestamps.
 - `Restore safety checks implemented and tested`:
   - `src/kb_bot/services/backup_service.py` blocks protected DB targets and validates checksum.
   - `tests/test_backup_service.py` includes checksum-mismatch and protected-DB blocking tests.
+
+## Next Session Priority
+
+1. Close Section 2 (Configuration & Secrets) with concrete evidence entries.
+2. Run Section 5 UAT on target environment and record results.
+3. Implement remaining Runtime Reliability controls (supervision/logging/alerts).
