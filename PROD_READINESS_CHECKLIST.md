@@ -117,7 +117,7 @@ Use this section to record proof links and timestamps.
 
 - Date: 2026-03-26
 - Item: Release smoke execution attempt
-- Evidence: `pwsh ./scripts/release_smoke.ps1` failed fast with Docker daemon unavailable (`npipe docker_engine`)
+- Evidence: `pwsh ./scripts/release_smoke.ps1` reaches Docker start, but migration step fails in current runner (`asyncio socketpair: Unexpected peer connection`)
 - Owner: team
 
 - Date: 2026-03-26
