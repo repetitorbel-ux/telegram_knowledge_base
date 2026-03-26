@@ -20,7 +20,7 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 - [x] Deployment target is defined (host/container platform, region, runtime).
 - [x] `.env` production template is finalized (without secrets in repo).
-- [~] Release command is documented and partially tested (blocked by Docker daemon access in current environment).
+- [x] Release command is documented and tested end-to-end.
 - [x] Database migration step (`alembic upgrade head`) is part of release flow.
 - [~] Rollback path is documented; execution test pending on target/staging host.
 
@@ -118,6 +118,11 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Release smoke execution attempt
 - Evidence: `pwsh ./scripts/release_smoke.ps1` reaches Docker start, but migration step fails in current runner (`asyncio socketpair: Unexpected peer connection`)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Release command tested end-to-end
+- Evidence: `pwsh ./scripts/release_smoke.ps1` completed successfully (docker up, alembic upgrade head, pytest)
 - Owner: team
 
 - Date: 2026-03-26

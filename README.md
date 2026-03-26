@@ -46,6 +46,7 @@ Single-user Telegram KB bot MVP skeleton.
    - `DATABASE_URL`
 3. Start PostgreSQL:
    - `docker-compose up -d`
+   - default local mapped port: `55433`
 4. Install dependencies:
    - `python -m pip install -e .[dev]`
 5. Run migration:
