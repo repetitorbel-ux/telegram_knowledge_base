@@ -14,3 +14,4 @@ postgres_data/
 .e2e.alembic.ini
 .e2e_pgdata/
 *.egg-info/
+manual operation/
