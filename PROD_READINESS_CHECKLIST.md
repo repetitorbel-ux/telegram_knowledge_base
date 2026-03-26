@@ -22,7 +22,7 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [x] `.env` production template is finalized (without secrets in repo).
 - [x] Release command is documented and tested end-to-end.
 - [x] Database migration step (`alembic upgrade head`) is part of release flow.
-- [~] Rollback path is documented; execution test pending on target/staging host.
+- [x] Rollback path is documented and tested at least once.
 
 ## 2) Configuration & Secrets
 
@@ -36,8 +36,8 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 - [ ] Backups can be created from production runtime (`/backup`).
 - [ ] `/backups` lists newly created records.
-- [ ] Restore runbook reviewed: `docs/RESTORE_RUNBOOK.md`.
-- [ ] Restore drill executed in staging/safe DB with successful validation.
+- [x] Restore runbook reviewed: `docs/RESTORE_RUNBOOK.md`.
+- [x] Restore drill executed in staging/safe DB with successful validation.
 - [x] Checksum mismatch scenario is verified as blocked.
 - [x] Restore to protected DB names is verified as blocked.
 
@@ -123,6 +123,16 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Release command tested end-to-end
 - Evidence: `pwsh ./scripts/release_smoke.ps1` completed successfully (docker up, alembic upgrade head, pytest)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Rollback path tested
+- Evidence: rollback drill on container DB (`topics` count 6 -> 7 after insert -> 6 after restore; drill topic removed)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Restore drill executed and runbook reviewed
+- Evidence: `docs/RESTORE_RUNBOOK.md` used; `pg_dump` + `pg_restore --clean --if-exists --single-transaction` validated on safe DB
 - Owner: team
 
 - Date: 2026-03-26
