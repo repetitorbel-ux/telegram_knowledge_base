@@ -62,3 +62,6 @@ Follow `docs/RESTORE_RUNBOOK.md` and perform restore only with approved token fl
   - verify current user has access to Docker daemon
 - `Access is denied` on Docker config/service:
   - run with proper host permissions (outside restricted sandbox session)
+- `ConnectionError: Unexpected peer connection` during `alembic upgrade head`:
+  - this indicates event loop restrictions of current runner/session
+  - rerun release smoke directly in host terminal/session with full OS networking/event-loop support
