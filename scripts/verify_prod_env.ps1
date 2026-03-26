@@ -72,7 +72,7 @@ foreach ($key in $required) {
 
 if ($envMap.ContainsKey("TELEGRAM_BOT_TOKEN")) {
     $token = $envMap["TELEGRAM_BOT_TOKEN"]
-    if ($token -match "__SET_IN_SECRET_MANAGER__|^changeme$|^your_token_here$") {
+    if ($token -match "__SET_IN_SECRET_MANAGER__|^changeme$|^your_token_here$|^replace_me$|^replace-with-real-token$") {
         Add-Failure "TELEGRAM_BOT_TOKEN still has placeholder value"
     } else {
         Add-Pass "TELEGRAM_BOT_TOKEN is not a placeholder"

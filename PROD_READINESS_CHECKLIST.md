@@ -27,13 +27,14 @@ Production-only controls are marked as optional.
 
 ## 2) Local Configuration & Secrets
 
-- [x] `TELEGRAM_BOT_TOKEN` is set in local `.env` and not committed to git.
+- [~] `TELEGRAM_BOT_TOKEN` is set in local `.env` and not committed to git.
 - [x] `TELEGRAM_ALLOWED_USER_ID` is set to the local owner account.
 - [x] `DATABASE_URL` points to local PostgreSQL instance.
 - [x] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` are valid for local machine.
 - [~] Optional: strict secret rotation policy for shared/production usage.
 - Local close command: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`
 - Close criteria: command returns `SECTION2_ENV_CHECK: PASS`.
+- Current blocker: `.env` still contains placeholder bot token (`replace_me`).
 
 ## 3) Database & Data Safety (Local)
 
@@ -189,6 +190,11 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Checklist switched to local-first mode
 - Evidence: sections and acceptance criteria updated for local single-user operation
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 local validation run
+- Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> FAIL (`TELEGRAM_BOT_TOKEN still has placeholder value`)
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
