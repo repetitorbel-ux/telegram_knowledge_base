@@ -18,11 +18,11 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 ## 1) Release & Deployment
 
-- [ ] Deployment target is defined (host/container platform, region, runtime).
-- [ ] `.env` production template is finalized (without secrets in repo).
-- [ ] Release command is documented and tested end-to-end.
+- [x] Deployment target is defined (host/container platform, region, runtime).
+- [x] `.env` production template is finalized (without secrets in repo).
+- [~] Release command is documented and partially tested (blocked by Docker daemon access in current environment).
 - [x] Database migration step (`alembic upgrade head`) is part of release flow.
-- [ ] Rollback path is documented and tested at least once.
+- [~] Rollback path is documented; execution test pending on target/staging host.
 
 ## 2) Configuration & Secrets
 
@@ -47,7 +47,7 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [ ] Process supervision configured (`systemd`/Docker restart policy/etc.).
 - [ ] Logs are persisted and accessible (stdout aggregation or file sink).
 - [ ] Error monitoring configured (at minimum: startup failures and exceptions).
-- [ ] Minimal health check procedure documented.
+- [x] Minimal health check procedure documented.
 
 ## 5) Functional UAT (Critical Flows)
 
@@ -99,6 +99,31 @@ Use this section to record proof links and timestamps.
 - Item:
 - Evidence:
 - Owner:
+
+- Date: 2026-03-26
+- Item: Deployment target is defined
+- Evidence: `DEPLOYMENT_TARGET.md`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: `.env` production template is finalized
+- Evidence: `env.production.example`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Release command documented
+- Evidence: `docs/DEPLOY_RUNBOOK.md`, `scripts/release_smoke.ps1`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Release smoke execution attempt
+- Evidence: `pwsh ./scripts/release_smoke.ps1` failed fast with Docker daemon unavailable (`npipe docker_engine`)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Minimal health check procedure documented
+- Evidence: `docs/DEPLOY_RUNBOOK.md` (post-deploy Telegram smoke commands)
+- Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
 
