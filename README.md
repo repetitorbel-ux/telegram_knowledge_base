@@ -61,6 +61,11 @@ Single-user Telegram KB bot MVP skeleton.
 - Team git cycle for this repository:
   - `GIT_WORKFLOW.md`
 
+## Production Readiness
+
+- Pre-go-live checklist:
+  - `PROD_READINESS_CHECKLIST.md`
+
 ## Operations
 
 - Restore safety checklist and procedure:
