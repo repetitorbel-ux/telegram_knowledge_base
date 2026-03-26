@@ -14,6 +14,7 @@ Use this file during production UAT for checklist Section 5.
 
 - Production deploy completed.
 - `Section 2` is closed (`SECTION2_ENV_CHECK: PASS` recorded).
+- Local precheck completed: `pwsh ./scripts/section5_local_smoke.ps1` (should end with `SECTION5_LOCAL_SMOKE: PASS`).
 - Test dataset available (topics, entries, sample import/export files).
 
 ## Execution Log

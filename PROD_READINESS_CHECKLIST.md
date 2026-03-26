@@ -56,6 +56,7 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 ## 5) Functional UAT (Critical Flows)
 
+- [x] Local pre-UAT smoke for Section 5 command parsing/services is green (`scripts/section5_local_smoke.ps1`).
 - [ ] `/start` and auth guard validated with production user.
 - [ ] `/add` manual flow validated (URL and note modes).
 - [ ] `/search`, `/list`, `/entry`, `/status` validated on real data.
@@ -174,6 +175,11 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Section 5 UAT execution template prepared
 - Evidence: `docs/UAT_SECTION5_TEMPLATE.md`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 5 local pre-UAT smoke
+- Evidence: `pwsh ./scripts/section5_local_smoke.ps1` -> `22 passed` (`SECTION5_LOCAL_SMOKE: PASS`)
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)

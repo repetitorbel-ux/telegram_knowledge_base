@@ -80,6 +80,8 @@ Single-user Telegram KB bot MVP skeleton.
   - `docs/RESTORE_RUNBOOK.md`
 - Secrets and configuration validation flow:
   - `docs/SECRETS_RUNBOOK.md`
+- Section 5 local pre-UAT smoke command:
+  - `pwsh ./scripts/section5_local_smoke.ps1`
 
 ## Release Notes
 
