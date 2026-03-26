@@ -27,14 +27,13 @@ Production-only controls are marked as optional.
 
 ## 2) Local Configuration & Secrets
 
-- [~] `TELEGRAM_BOT_TOKEN` is set in local `.env` and not committed to git.
+- [x] `TELEGRAM_BOT_TOKEN` is set in local `.env` and not committed to git.
 - [x] `TELEGRAM_ALLOWED_USER_ID` is set to the local owner account.
 - [x] `DATABASE_URL` points to local PostgreSQL instance.
 - [x] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` are valid for local machine.
 - [~] Optional: strict secret rotation policy for shared/production usage.
 - Local close command: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`
 - Close criteria: command returns `SECTION2_ENV_CHECK: PASS`.
-- Current blocker: `.env` still contains placeholder bot token (`replace_me`).
 
 ## 3) Database & Data Safety (Local)
 
@@ -197,6 +196,11 @@ Use this section to record proof links and timestamps.
 - Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> FAIL (`TELEGRAM_BOT_TOKEN still has placeholder value`)
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Section 2 local validation rerun
+- Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> `SECTION2_ENV_CHECK: PASS`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -209,6 +213,6 @@ Use this section to record proof links and timestamps.
 
 ## Next Session Priority
 
-1. Run Section 2 local validation command (`pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`) and confirm PASS.
-2. Run Section 5 UAT on local Telegram environment using `docs/UAT_SECTION5_TEMPLATE.md`.
-3. Choose and apply local runtime strategy for Section 4 (autostart/logging/error visibility).
+1. Run Section 5 UAT on local Telegram environment using `docs/UAT_SECTION5_TEMPLATE.md`.
+2. Choose and apply local runtime strategy for Section 4 (autostart/logging/error visibility).
+3. Complete Section 3 backup runtime checks (`/backup`, `/backups`) and attach evidence.
