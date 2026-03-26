@@ -1,0 +1,24 @@
+[Unit]
+Description=Telegram KB Bot
+After=network-online.target
+Wants=network-online.target
+OnFailure=tg-kb-alert@%n.service
+
+[Service]
+Type=simple
+User=tgkb
+Group=tgkb
+WorkingDirectory=/opt/tg_db
+EnvironmentFile=/etc/tg_kb/.env
+ExecStart=/usr/bin/env python -m kb_bot.main
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+SyslogIdentifier=tg-kb-bot
+
+# Bot writes JSON logs to stdout; journald keeps them queryable.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

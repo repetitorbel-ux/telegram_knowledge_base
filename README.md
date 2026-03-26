@@ -76,6 +76,8 @@ Single-user Telegram KB bot MVP skeleton.
 
 - Deploy procedure and release smoke:
   - `docs/DEPLOY_RUNBOOK.md`
+- Runtime reliability (systemd/logging/alerts/reboot checks):
+  - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
 - Secrets and configuration validation flow:

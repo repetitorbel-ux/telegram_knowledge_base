@@ -35,6 +35,10 @@ After successful smoke:
    - `/stats`
    - `/list limit=5`
 
+Production baseline for runtime supervision/logging/alerts is documented in:
+
+- `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
+
 ## Rollback
 
 ### Application rollback

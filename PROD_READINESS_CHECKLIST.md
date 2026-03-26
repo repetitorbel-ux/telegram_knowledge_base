@@ -48,10 +48,10 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 
 ## 4) Runtime Reliability
 
-- [ ] Bot startup command is stable on host restart.
-- [ ] Process supervision configured (`systemd`/Docker restart policy/etc.).
-- [ ] Logs are persisted and accessible (stdout aggregation or file sink).
-- [ ] Error monitoring configured (at minimum: startup failures and exceptions).
+- [~] Bot startup command reboot verification procedure is prepared (pending host execution).
+- [~] Process supervision baseline prepared (`systemd` units in `deploy/systemd/`) and pending host install.
+- [~] Logs persistence/access baseline prepared (`journald` flow documented) and pending host apply.
+- [~] Error monitoring baseline prepared (`OnFailure` alert hook + healthcheck timer) and pending host apply.
 - [x] Minimal health check procedure documented.
 
 ## 5) Functional UAT (Critical Flows)
@@ -182,6 +182,11 @@ Use this section to record proof links and timestamps.
 - Evidence: `pwsh ./scripts/section5_local_smoke.ps1` -> `22 passed` (`SECTION5_LOCAL_SMOKE: PASS`)
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Runtime reliability baseline prepared
+- Evidence: `docs/RUNTIME_RELIABILITY_RUNBOOK.md`, `deploy/systemd/*`, `scripts/runtime_healthcheck.sh`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -196,4 +201,4 @@ Use this section to record proof links and timestamps.
 
 1. Run Section 2 host validation command on production host and mark remaining Section 2 items `[x]`.
 2. Run Section 5 UAT on target environment using `docs/UAT_SECTION5_TEMPLATE.md` and record results.
-3. Implement remaining Runtime Reliability controls (supervision/logging/alerts).
+3. Apply runtime reliability baseline on host (`docs/RUNTIME_RELIABILITY_RUNBOOK.md`) and promote Section 4 items to `[x]` with evidence.
