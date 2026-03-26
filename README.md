@@ -67,6 +67,8 @@ Single-user Telegram KB bot MVP skeleton.
 
 - Pre-go-live checklist:
   - `PROD_READINESS_CHECKLIST.md`
+- Section 5 UAT execution template:
+  - `docs/UAT_SECTION5_TEMPLATE.md`
 - Deployment target definition:
   - `DEPLOYMENT_TARGET.md`
 

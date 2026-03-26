@@ -33,6 +33,9 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [x] Secret rotation plan exists (who rotates, how often, how validated).
 - Section 2 close command on target host: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
 - Section 2 close criteria: command returns `SECTION2_ENV_CHECK: PASS`, then mark remaining Section 2 items as `[x]`.
+- Blocker: production host shell access is required to run the close command in real environment.
+- Owner: team
+- Next action: execute close command on production host and append output summary to Evidence Log.
 
 ## 3) Database & Data Safety
 
@@ -60,6 +63,7 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [ ] Import/export validated with representative CSV/JSON files.
 - [ ] Collection flow validated (`/collection_add`, `/collections`, `/collection_run`).
 - [ ] Stats command validated (`/stats`).
+- Execution template: `docs/UAT_SECTION5_TEMPLATE.md`
 
 ## 6) CI/CD & Quality Gates
 
@@ -162,6 +166,16 @@ Use this section to record proof links and timestamps.
 - Evidence: `scripts/verify_prod_env.ps1`; run on target host: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Section 2 close is blocked in current session
+- Evidence: no production shell access in this environment; close command documented and ready
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 5 UAT execution template prepared
+- Evidence: `docs/UAT_SECTION5_TEMPLATE.md`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -175,5 +189,5 @@ Use this section to record proof links and timestamps.
 ## Next Session Priority
 
 1. Run Section 2 host validation command on production host and mark remaining Section 2 items `[x]`.
-2. Run Section 5 UAT on target environment and record results.
+2. Run Section 5 UAT on target environment using `docs/UAT_SECTION5_TEMPLATE.md` and record results.
 3. Implement remaining Runtime Reliability controls (supervision/logging/alerts).
