@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from kb_bot.db.orm.base import Base
+from kb_bot.db.types import Ltree
 
 
 class Topic(Base):
@@ -18,7 +19,7 @@ class Topic(Base):
         UUID(as_uuid=True), ForeignKey("topics.id"), nullable=True
     )
     full_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-    full_path_ltree: Mapped[str] = mapped_column(Text, nullable=False)
+    full_path_ltree: Mapped[str] = mapped_column(Ltree(), nullable=False)
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
