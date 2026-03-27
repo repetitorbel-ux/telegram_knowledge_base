@@ -56,13 +56,13 @@ Production-only controls are marked as optional.
 ## 5) Functional UAT (Critical Flows, Local Telegram)
 
 - [x] Local pre-UAT smoke for Section 5 command parsing/services is green (`scripts/section5_local_smoke.ps1`).
-- [ ] `/start` and auth guard validated with local owner user.
-- [ ] `/add` manual flow validated (URL and note modes).
-- [ ] `/search`, `/list`, `/entry`, `/status` validated on local real data.
-- [ ] Topic flow validated (`/topics`, `/topic_add`, `/topic_rename`).
-- [ ] Import/export validated with representative CSV/JSON files.
-- [ ] Collection flow validated (`/collection_add`, `/collections`, `/collection_run`).
-- [ ] Stats command validated (`/stats`).
+- [x] `/start` and auth guard validated with local owner user.
+- [x] `/add` manual flow validated (URL and note modes).
+- [x] `/search`, `/list`, `/entry`, `/status` validated on local real data.
+- [x] Topic flow validated (`/topics`, `/topic_add`, `/topic_rename`).
+- [x] Import/export validated with representative CSV/JSON files.
+- [x] Collection flow validated (`/collection_add`, `/collections`, `/collection_run`).
+- [x] Stats command validated (`/stats`).
 - Execution template: `docs/UAT_SECTION5_TEMPLATE.md`
 
 ## 6) CI/CD & Quality Gates
@@ -209,6 +209,21 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-26
 - Item: Local runtime start check from current runner
 - Evidence: `python -m kb_bot.main` still fails in this restricted session (`ConnectionError: Unexpected peer connection`), run directly in normal local terminal to validate Telegram polling runtime
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 UAT partial close (`/search`, `/list`, `/entry`, `/status`, import/export, `/stats`)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; exports jobs `586f3753-c104-4e8b-9a92-6166eb3a4c77` (csv), `44e622d3-e0ad-46e9-a7b6-eebc96bfc418` (json); `/stats` -> `Total entries: 6`, `Verified: 1`
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 additional UAT close (`/start` auth guard, topic flow, collections)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; `/start` allows owner + `Access denied` for non-allowlisted user; `Topic created` + successful rename; `/collection_run` for `uat_new` returned 5 `New` entries
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 final UAT close (`/add` URL/note modes)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; created entries `899c4c42-f311-442a-ae5f-3120f044bf5b` (URL mode) and `db3a893f-842d-405a-99aa-1f01c863e37f` (note mode); both visible in `/list limit=5`
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)

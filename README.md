@@ -44,15 +44,24 @@ Single-user Telegram KB bot MVP skeleton.
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_ALLOWED_USER_ID`
    - `DATABASE_URL`
-3. Start PostgreSQL:
-   - `docker-compose up -d`
-   - default local mapped port: `55433`
+3. Ensure PostgreSQL is available (choose one):
+   - Docker mode:
+     - `docker compose up -d postgres`
+     - default local mapped port: `55433`
+   - No-Docker mode:
+     - run local/remote PostgreSQL outside Docker
+     - set `DATABASE_URL` to that instance (common local port: `5432`)
 4. Install dependencies:
    - `python -m pip install -e .[dev]`
 5. Run migration:
    - `alembic upgrade head`
 6. Start bot:
    - `python -m kb_bot.main`
+
+Release smoke options:
+
+- Docker DB mode (default): `pwsh ./scripts/release_smoke.ps1`
+- No-Docker DB mode: `pwsh ./scripts/release_smoke.ps1 -DatabaseMode external`
 
 ## Run tests
 

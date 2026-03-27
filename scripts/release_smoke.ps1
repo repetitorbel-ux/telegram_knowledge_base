@@ -1,5 +1,7 @@
 param(
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [ValidateSet("docker", "external")]
+    [string]$DatabaseMode = "docker"
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,7 +19,13 @@ function Invoke-Step {
     }
 }
 
-Invoke-Step "Starting PostgreSQL container" { docker compose up -d postgres }
+if ($DatabaseMode -eq "docker") {
+    Invoke-Step "Starting PostgreSQL container" { docker compose up -d postgres }
+}
+else {
+    Write-Host "[release-smoke] Using external/local PostgreSQL from DATABASE_URL (.env). Docker start is skipped."
+}
+
 Invoke-Step "Running migrations" { alembic upgrade head }
 
 if (-not $SkipTests) {
