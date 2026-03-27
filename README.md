@@ -44,15 +44,24 @@ Single-user Telegram KB bot MVP skeleton.
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_ALLOWED_USER_ID`
    - `DATABASE_URL`
-3. Start PostgreSQL:
-   - `docker-compose up -d`
-   - default local mapped port: `55433`
+3. Ensure PostgreSQL is available (choose one):
+   - Docker mode:
+     - `docker compose up -d postgres`
+     - default local mapped port: `55433`
+   - No-Docker mode:
+     - run local/remote PostgreSQL outside Docker
+     - set `DATABASE_URL` to that instance (common local port: `5432`)
 4. Install dependencies:
    - `python -m pip install -e .[dev]`
 5. Run migration:
    - `alembic upgrade head`
 6. Start bot:
    - `python -m kb_bot.main`
+
+Release smoke options:
+
+- Docker DB mode (default): `pwsh ./scripts/release_smoke.ps1`
+- No-Docker DB mode: `pwsh ./scripts/release_smoke.ps1 -DatabaseMode external`
 
 ## Run tests
 
@@ -63,19 +72,27 @@ Single-user Telegram KB bot MVP skeleton.
 - Team git cycle for this repository:
   - `GIT_WORKFLOW.md`
 
-## Production Readiness
+## Readiness
 
-- Pre-go-live checklist:
+- Local-first readiness checklist:
   - `PROD_READINESS_CHECKLIST.md`
-- Deployment target definition:
+- Section 5 UAT execution template:
+  - `docs/UAT_SECTION5_TEMPLATE.md`
+- Deployment target definition (local-first):
   - `DEPLOYMENT_TARGET.md`
 
 ## Operations
 
 - Deploy procedure and release smoke:
   - `docs/DEPLOY_RUNBOOK.md`
+- Runtime reliability (optional Linux profile: systemd/logging/alerts/reboot checks):
+  - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
+- Secrets and configuration validation flow:
+  - `docs/SECRETS_RUNBOOK.md`
+- Section 5 local pre-UAT smoke command:
+  - `pwsh ./scripts/section5_local_smoke.ps1`
 
 ## Release Notes
 

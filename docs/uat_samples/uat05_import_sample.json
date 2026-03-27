@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {
+      "title": "PostgreSQL Backup Basics",
+      "original_url": "https://www.postgresql.org/docs/current/app-pgdump.html",
+      "notes": "pg_dump quick reference"
+    },
+    {
+      "title": "Telegram Bot API Overview",
+      "original_url": "https://core.telegram.org/bots/api",
+      "notes": "bot api doc"
+    },
+    {
+      "notes": "note-only import row (no url, no title)"
+    }
+  ]
+}

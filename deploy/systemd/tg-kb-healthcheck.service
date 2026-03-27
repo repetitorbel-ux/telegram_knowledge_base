@@ -1,0 +1,9 @@
+[Unit]
+Description=Runtime healthcheck for tg-kb-bot
+
+[Service]
+Type=oneshot
+User=tgkb
+Group=tgkb
+WorkingDirectory=/opt/tg_db
+ExecStart=/usr/local/bin/tg-kb-runtime-healthcheck

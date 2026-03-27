@@ -35,6 +35,9 @@ def create_topic_manage_router(session_factory: async_sessionmaker) -> Router:
             except ValueError as exc:
                 await message.answer(f"Validation error: {exc}")
                 return
+            except Exception as exc:
+                await message.answer(f"Topic add failed: {exc}")
+                raise
 
         await message.answer(f"Topic created: `{topic.id}` {topic.full_path}")
 
@@ -55,8 +58,10 @@ def create_topic_manage_router(session_factory: async_sessionmaker) -> Router:
             except TopicConflictError:
                 await message.answer("Target topic path already exists.")
                 return
+            except Exception as exc:
+                await message.answer(f"Topic rename failed: {exc}")
+                raise
 
         await message.answer(f"Topic renamed: `{topic.id}` {topic.full_path}")
 
     return router
-

@@ -48,7 +48,11 @@ class ImportService:
 
         default_topic = await self.topics_repo.get_by_name("Useful Channels")
         if default_topic is None:
-            raise RuntimeError("Default topic 'Useful Channels' not found")
+            # UAT/local databases may rename seed topics. Fallback to any active topic.
+            topics = await self.topics_repo.list_tree()
+            default_topic = topics[0] if topics else None
+        if default_topic is None:
+            raise RuntimeError("No active topics found. Create at least one topic before import.")
 
         entry_service = EntryService(
             session=self.session,
@@ -113,4 +117,3 @@ class ImportService:
             duplicate_records=job.duplicate_records,
             error_records=job.error_records,
         )
-

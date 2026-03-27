@@ -1,0 +1,11 @@
+[Unit]
+Description=Run tg-kb-bot runtime healthcheck every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=tg-kb-healthcheck.service
+
+[Install]
+WantedBy=timers.target

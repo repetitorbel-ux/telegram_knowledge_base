@@ -1,9 +1,32 @@
+import os
+from pathlib import Path
 from typing import Any, Awaitable, Callable
+
+
+def _sanitize_sslkeylogfile() -> None:
+    value = os.environ.get("SSLKEYLOGFILE")
+    if not value:
+        return
+    if os.name == "nt":
+        os.environ.pop("SSLKEYLOGFILE", None)
+        return
+
+    target = Path(value)
+    parent = target.parent if target.parent != Path("") else Path(".")
+    parent_writable = parent.exists() and os.access(parent, os.W_OK)
+    file_writable = (target.exists() and os.access(target, os.W_OK)) or (
+        not target.exists() and parent_writable
+    )
+    if not file_writable:
+        os.environ.pop("SSLKEYLOGFILE", None)
+
+
+_sanitize_sslkeylogfile()
 
 try:
     from aiogram import BaseMiddleware
     from aiogram.types import Message, TelegramObject
-except ModuleNotFoundError:  # pragma: no cover
+except (ModuleNotFoundError, PermissionError):  # pragma: no cover
     class BaseMiddleware:  # type: ignore[override]
         pass
 

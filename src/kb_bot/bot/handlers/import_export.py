@@ -19,7 +19,7 @@ from kb_bot.services.import_service import ImportService
 def create_import_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
 
-    @router.message(Command("import"))
+    @router.message(Command("import"), F.text)
     async def import_help_handler(message: Message) -> None:
         await message.answer(
             "Send CSV or JSON document with caption /import.\n"
@@ -43,15 +43,19 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
         await message.bot.download_file(file.file_path, destination=buffer)
         payload = buffer.getvalue()
 
-        async with session_factory() as session:
-            service = ImportService(
-                session=session,
-                jobs_repo=JobsRepository(session),
-                entries_repo=EntriesRepository(session),
-                topics_repo=TopicsRepository(session),
-                statuses_repo=StatusesRepository(session),
-            )
-            result = await service.import_rows(filename, source_format, payload)
+        try:
+            async with session_factory() as session:
+                service = ImportService(
+                    session=session,
+                    jobs_repo=JobsRepository(session),
+                    entries_repo=EntriesRepository(session),
+                    topics_repo=TopicsRepository(session),
+                    statuses_repo=StatusesRepository(session),
+                )
+                result = await service.import_rows(filename, source_format, payload)
+        except Exception as exc:
+            await message.answer(f"Import failed: {exc}")
+            raise
 
         await message.answer(
             f"Import completed:\n"
@@ -62,7 +66,7 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
             f"Errors: {result.error_records}"
         )
 
-    @router.message(Command("export"))
+    @router.message(Command("export"), F.text)
     async def export_handler(message: Message) -> None:
         export_format = parse_export_format(message.text)
         parsed = parse_list_command(message.text)
@@ -71,13 +75,17 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
             topic_id=parsed.topic_id,
             limit=parsed.limit,
         )
-        async with session_factory() as session:
-            service = ExportService(
-                jobs_repo=JobsRepository(session),
-                entries_repo=EntriesRepository(session),
-                session=session,
-            )
-            result = await service.export_entries(export_format=export_format, filters=filters)
+        try:
+            async with session_factory() as session:
+                service = ExportService(
+                    jobs_repo=JobsRepository(session),
+                    entries_repo=EntriesRepository(session),
+                    session=session,
+                )
+                result = await service.export_entries(export_format=export_format, filters=filters)
+        except Exception as exc:
+            await message.answer(f"Export failed: {exc}")
+            raise
 
         file = BufferedInputFile(result.content, filename=result.filename)
         await message.answer_document(

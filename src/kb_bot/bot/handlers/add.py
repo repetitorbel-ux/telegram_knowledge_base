@@ -18,19 +18,27 @@ from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 def create_add_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
 
+    @router.message(Command("cancel"))
+    async def add_cancel(message: Message, state: FSMContext) -> None:
+        if await state.get_state() is None:
+            await message.answer("No active flow to cancel.")
+            return
+        await state.clear()
+        await message.answer("Current flow cancelled.")
+
     @router.message(Command("add"))
     async def add_start(message: Message, state: FSMContext) -> None:
         await state.set_state(AddEntryStates.waiting_content)
         await message.answer("Send URL (http/https) or plain note text.")
 
-    @router.message(AddEntryStates.waiting_content, F.text)
+    @router.message(AddEntryStates.waiting_content, F.text & ~F.text.startswith("/"))
     async def add_content(message: Message, state: FSMContext) -> None:
         original_url, notes = parse_content_input(message.text or "")
         await state.update_data(original_url=original_url, notes=notes)
         await state.set_state(AddEntryStates.waiting_title)
         await message.answer("Now send title.")
 
-    @router.message(AddEntryStates.waiting_title, F.text)
+    @router.message(AddEntryStates.waiting_title, F.text & ~F.text.startswith("/"))
     async def add_title(message: Message, state: FSMContext) -> None:
         title = (message.text or "").strip()
         if not title:
@@ -49,7 +57,7 @@ def create_add_router(session_factory: async_sessionmaker) -> Router:
         await state.set_state(AddEntryStates.waiting_topic)
         await message.answer("Send topic UUID:\n" + "\n".join(lines))
 
-    @router.message(AddEntryStates.waiting_topic, F.text)
+    @router.message(AddEntryStates.waiting_topic, F.text & ~F.text.startswith("/"))
     async def add_topic(message: Message, state: FSMContext) -> None:
         try:
             topic_id = uuid.UUID((message.text or "").strip())
@@ -92,5 +100,11 @@ def create_add_router(session_factory: async_sessionmaker) -> Router:
             f"Status: {entry.status_name}\n"
             f"URL: {entry.normalized_url or '-'}"
         )
+
+    @router.message(AddEntryStates.waiting_content, F.text.startswith("/"))
+    @router.message(AddEntryStates.waiting_title, F.text.startswith("/"))
+    @router.message(AddEntryStates.waiting_topic, F.text.startswith("/"))
+    async def add_state_command_hint(message: Message) -> None:
+        await message.answer("You are in /add flow. Send expected value or /cancel.")
 
     return router

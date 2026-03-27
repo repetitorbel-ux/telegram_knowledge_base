@@ -1,12 +1,13 @@
-# Production Readiness Checklist
+# Local Readiness Checklist
 
-This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be executed before first real production launch.
+This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended for local single-user operation.  
+Production-only controls are marked as optional.
 
 ## How To Use
 
 - Mark each item as done only after evidence is available (logs, screenshots, command output, or document link).
 - Do not skip blocked items; add owner + next action.
-- Use this file as the single source of truth for go-live readiness.
+- Use this file as the single source of truth for local readiness.
 
 ## Status Legend
 
@@ -24,40 +25,45 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [x] Database migration step (`alembic upgrade head`) is part of release flow.
 - [x] Rollback path is documented and tested at least once.
 
-## 2) Configuration & Secrets
+## 2) Local Configuration & Secrets
 
-- [ ] `TELEGRAM_BOT_TOKEN` is stored in secure secret storage.
-- [ ] `TELEGRAM_ALLOWED_USER_ID` is set correctly for production user.
-- [ ] `DATABASE_URL` points to production DB (not local, not test).
-- [ ] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` verified on target host.
-- [ ] Secret rotation plan exists (who rotates, how often, how validated).
+- [x] `TELEGRAM_BOT_TOKEN` is set in local `.env` and not committed to git.
+- [x] `TELEGRAM_ALLOWED_USER_ID` is set to the local owner account.
+- [x] `DATABASE_URL` points to local PostgreSQL instance.
+- [x] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` are valid for local machine.
+- [~] Optional: strict secret rotation policy for shared/production usage.
+- Local close command: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`
+- Close criteria: command returns `SECTION2_ENV_CHECK: PASS`.
 
-## 3) Database & Data Safety
+## 3) Database & Data Safety (Local)
 
-- [ ] Backups can be created from production runtime (`/backup`).
+- [ ] Backups can be created from runtime (`/backup`).
 - [ ] `/backups` lists newly created records.
 - [x] Restore runbook reviewed: `docs/RESTORE_RUNBOOK.md`.
 - [x] Restore drill executed in staging/safe DB with successful validation.
 - [x] Checksum mismatch scenario is verified as blocked.
 - [x] Restore to protected DB names is verified as blocked.
 
-## 4) Runtime Reliability
+## 4) Runtime Reliability (Local)
 
-- [ ] Bot startup command is stable on host restart.
-- [ ] Process supervision configured (`systemd`/Docker restart policy/etc.).
-- [ ] Logs are persisted and accessible (stdout aggregation or file sink).
-- [ ] Error monitoring configured (at minimum: startup failures and exceptions).
+- [ ] Bot startup command is stable after local reboot.
+- [ ] Autostart strategy is configured (Task Scheduler/startup script/manual start checklist).
+- [ ] Logs are persisted and accessible locally.
+- [ ] Error notifications baseline is defined (at minimum: startup failures/exceptions).
 - [x] Minimal health check procedure documented.
+- [~] Optional (production/Linux profile): `systemd`/journald/OnFailure flow in `docs/RUNTIME_RELIABILITY_RUNBOOK.md`.
 
-## 5) Functional UAT (Critical Flows)
+## 5) Functional UAT (Critical Flows, Local Telegram)
 
-- [ ] `/start` and auth guard validated with production user.
-- [ ] `/add` manual flow validated (URL and note modes).
-- [ ] `/search`, `/list`, `/entry`, `/status` validated on real data.
-- [ ] Topic flow validated (`/topics`, `/topic_add`, `/topic_rename`).
-- [ ] Import/export validated with representative CSV/JSON files.
-- [ ] Collection flow validated (`/collection_add`, `/collections`, `/collection_run`).
-- [ ] Stats command validated (`/stats`).
+- [x] Local pre-UAT smoke for Section 5 command parsing/services is green (`scripts/section5_local_smoke.ps1`).
+- [x] `/start` and auth guard validated with local owner user.
+- [x] `/add` manual flow validated (URL and note modes).
+- [x] `/search`, `/list`, `/entry`, `/status` validated on local real data.
+- [x] Topic flow validated (`/topics`, `/topic_add`, `/topic_rename`).
+- [x] Import/export validated with representative CSV/JSON files.
+- [x] Collection flow validated (`/collection_add`, `/collections`, `/collection_run`).
+- [x] Stats command validated (`/stats`).
+- Execution template: `docs/UAT_SECTION5_TEMPLATE.md`
 
 ## 6) CI/CD & Quality Gates
 
@@ -66,28 +72,28 @@ This checklist is tailored for `telegram-kb-bot` (`tg_db`) and is intended to be
 - [~] Required checks configured on PR merge - blocked together with branch protection on current plan.
 - [x] Release notes/changelog convention agreed.
 
-## 7) Security & Access
+## 7) Security & Access (Local)
 
 - [ ] Repository access reviewed (only required collaborators).
-- [ ] Production host access reviewed (least privilege).
-- [ ] DB user permissions scoped to required operations only.
+- [ ] Local machine access baseline reviewed (OS account and file permissions).
+- [ ] DB user permissions scoped to required operations only (local DB user).
 - [ ] No sensitive values present in git history/new commits.
 
-## 8) Go-Live Plan
+## 8) Local Usage Plan
 
-- [ ] Go-live date/time and owner assigned.
-- [ ] Rollback decision criteria defined.
-- [ ] First 24h monitoring owner assigned.
-- [ ] Communication template prepared for incident/update.
+- [ ] First stable local usage date/time and owner assigned.
+- [ ] Local rollback decision criteria defined.
+- [ ] First 24h local observation owner assigned.
+- [ ] Recovery checklist prepared for failures.
 
-## 9) Definition Of Done For Production
+## 9) Definition Of Done For Local Launch
 
-Production launch is approved only when all conditions are true:
+Local launch is approved only when all conditions are true:
 
 - [ ] Sections 1-5 have no open critical items.
 - [ ] Backup + restore drill evidence is attached.
 - [ ] CI is green on latest `main`.
-- [ ] Go-live and rollback owners confirmed.
+- [ ] Local launch and rollback owners confirmed.
 
 ---
 
@@ -150,6 +156,76 @@ Use this section to record proof links and timestamps.
 - Evidence: `docs/RELEASE_NOTES_POLICY.md`, `CHANGELOG.md`
 - Owner: team
 
+- Date: 2026-03-26
+- Item: Section 2 secret storage and rotation policy documented
+- Evidence: `docs/SECRETS_RUNBOOK.md` (storage path, permissions, rotation cadence, validation flow)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 host validation command prepared
+- Evidence: `scripts/verify_prod_env.ps1`; run on target host: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath /etc/tg_kb/.env`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 close is blocked in current session
+- Evidence: no production shell access in this environment; close command documented and ready
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 5 UAT execution template prepared
+- Evidence: `docs/UAT_SECTION5_TEMPLATE.md`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 5 local pre-UAT smoke
+- Evidence: `pwsh ./scripts/section5_local_smoke.ps1` -> `22 passed` (`SECTION5_LOCAL_SMOKE: PASS`)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Runtime reliability baseline prepared
+- Evidence: `docs/RUNTIME_RELIABILITY_RUNBOOK.md`, `deploy/systemd/*`, `scripts/runtime_healthcheck.sh`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Checklist switched to local-first mode
+- Evidence: sections and acceptance criteria updated for local single-user operation
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 local validation run
+- Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> FAIL (`TELEGRAM_BOT_TOKEN still has placeholder value`)
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Section 2 local validation rerun
+- Evidence: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local` -> `SECTION2_ENV_CHECK: PASS`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Full local regression tests
+- Evidence: `python -m pytest -q` -> `43 passed`
+- Owner: team
+
+- Date: 2026-03-26
+- Item: Local runtime start check from current runner
+- Evidence: `python -m kb_bot.main` still fails in this restricted session (`ConnectionError: Unexpected peer connection`), run directly in normal local terminal to validate Telegram polling runtime
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 UAT partial close (`/search`, `/list`, `/entry`, `/status`, import/export, `/stats`)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; exports jobs `586f3753-c104-4e8b-9a92-6166eb3a4c77` (csv), `44e622d3-e0ad-46e9-a7b6-eebc96bfc418` (json); `/stats` -> `Total entries: 6`, `Verified: 1`
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 additional UAT close (`/start` auth guard, topic flow, collections)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; `/start` allows owner + `Access denied` for non-allowlisted user; `Topic created` + successful rename; `/collection_run` for `uat_new` returned 5 `New` entries
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 5 final UAT close (`/add` URL/note modes)
+- Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; created entries `899c4c42-f311-442a-ae5f-3120f044bf5b` (URL mode) and `db3a893f-842d-405a-99aa-1f01c863e37f` (note mode); both visible in `/list limit=5`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -162,6 +238,6 @@ Use this section to record proof links and timestamps.
 
 ## Next Session Priority
 
-1. Close Section 2 (Configuration & Secrets) with concrete evidence entries.
-2. Run Section 5 UAT on target environment and record results.
-3. Implement remaining Runtime Reliability controls (supervision/logging/alerts).
+1. Run Section 5 UAT on local Telegram environment using `docs/UAT_SECTION5_TEMPLATE.md`.
+2. Choose and apply local runtime strategy for Section 4 (autostart/logging/error visibility).
+3. Complete Section 3 backup runtime checks (`/backup`, `/backups`) and attach evidence.
