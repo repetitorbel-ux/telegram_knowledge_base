@@ -37,8 +37,8 @@ Production-only controls are marked as optional.
 
 ## 3) Database & Data Safety (Local)
 
-- [ ] Backups can be created from runtime (`/backup`).
-- [ ] `/backups` lists newly created records.
+- [x] Backups can be created from runtime (`/backup`).
+- [x] `/backups` lists newly created records.
 - [x] Restore runbook reviewed: `docs/RESTORE_RUNBOOK.md`.
 - [x] Restore drill executed in staging/safe DB with successful validation.
 - [x] Checksum mismatch scenario is verified as blocked.
@@ -46,12 +46,13 @@ Production-only controls are marked as optional.
 
 ## 4) Runtime Reliability (Local)
 
-- [ ] Bot startup command is stable after local reboot.
-- [ ] Autostart strategy is configured (Task Scheduler/startup script/manual start checklist).
-- [ ] Logs are persisted and accessible locally.
-- [ ] Error notifications baseline is defined (at minimum: startup failures/exceptions).
+- [x] Bot startup command is stable after local reboot.
+- [x] Autostart strategy is configured (Task Scheduler/startup script/manual start checklist).
+- [x] Logs are persisted and accessible locally.
+- [x] Error notifications baseline is defined (at minimum: startup failures/exceptions).
 - [x] Minimal health check procedure documented.
 - [~] Optional (production/Linux profile): `systemd`/journald/OnFailure flow in `docs/RUNTIME_RELIABILITY_RUNBOOK.md`.
+- [x] Windows local runtime profile documented: `docs/RUNTIME_RELIABILITY_RUNBOOK_WINDOWS.md`.
 
 ## 5) Functional UAT (Critical Flows, Local Telegram)
 
@@ -224,6 +225,26 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-27
 - Item: Section 5 final UAT close (`/add` URL/note modes)
 - Evidence: `docs/UAT_SECTION5_TEMPLATE_RU.md`; created entries `899c4c42-f311-442a-ae5f-3120f044bf5b` (URL mode) and `db3a893f-842d-405a-99aa-1f01c863e37f` (note mode); both visible in `/list limit=5`
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 3 runtime backup checks (`/backup`, `/backups`)
+- Evidence: `/backup` -> backup `4bf25c2a-ca50-4a62-b5fc-c3330756f5ac`, file `tg_kb_20260327_142909.dump`, checksum `679d0ec8d761fcb97cb7e1dea02d4f3dd51e3974c7fd8c1d3e17268d89d8e7a2`; `/backups` lists the same record (`tested=-`)
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 4 local runtime baseline (Windows profile + scripts)
+- Evidence: `docs/RUNTIME_RELIABILITY_RUNBOOK_WINDOWS.md`; scripts `scripts/start_bot_local.ps1`, `scripts/register_autostart_task.ps1`, `scripts/runtime_healthcheck_local.ps1`; autostart task creation from restricted session is blocked by host permissions (`schtasks`: access/path errors), needs host-terminal execution
+- Owner: team
+
+- Date: 2026-03-27
+- Item: Section 4 runtime live verification (local)
+- Evidence: `pwsh ./scripts/start_bot_local.ps1` -> bot started with log file `logs/bot_20260327_174900.log`; `pwsh ./scripts/runtime_healthcheck_local.ps1` -> `RUNTIME_CHECK: PASS` (`Process count: 1`)
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 4 close (reboot autostart + Telegram smoke)
+- Evidence: after local PC reboot PowerShell autostart ran `scripts/start_bot_local.ps1` (`Starting bot from D:\Development_codex\tg_db`, log `logs\bot_20260328_080437.log`); local check `pwsh ./scripts/runtime_healthcheck_local.ps1` -> `RUNTIME_CHECK: PASS`, `Process count: 1`; Telegram smoke confirms runtime and data path: `/stats` -> `Total entries: 8`, `New: 7`, `Verified: 1`; `/list limit=5` returns latest entries including `db3a893f-842d-405a-99aa-1f01c863e37f`, `899c4c42-f311-442a-ae5f-3120f044bf5b`, `e4138a7e-5925-462c-bbfa-1b1b8c32f00c`
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
