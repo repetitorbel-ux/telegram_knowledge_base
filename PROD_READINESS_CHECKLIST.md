@@ -31,7 +31,7 @@ Production-only controls are marked as optional.
 - [x] `TELEGRAM_ALLOWED_USER_ID` is set to the local owner account.
 - [x] `DATABASE_URL` points to local PostgreSQL instance.
 - [x] `BACKUP_DIR`, `PG_DUMP_BIN`, `PG_RESTORE_BIN` are valid for local machine.
-- [~] Optional: strict secret rotation policy for shared/production usage.
+- [x] Optional: strict secret rotation policy for shared/production usage.
 - Local close command: `pwsh ./scripts/verify_prod_env.ps1 -EnvFilePath ./.env -Mode local`
 - Close criteria: command returns `SECTION2_ENV_CHECK: PASS`.
 
@@ -51,7 +51,7 @@ Production-only controls are marked as optional.
 - [x] Logs are persisted and accessible locally.
 - [x] Error notifications baseline is defined (at minimum: startup failures/exceptions).
 - [x] Minimal health check procedure documented.
-- [~] Optional (production/Linux profile): `systemd`/journald/OnFailure flow in `docs/RUNTIME_RELIABILITY_RUNBOOK.md`.
+- [x] Optional (production/Linux profile): `systemd`/journald/OnFailure flow in `docs/RUNTIME_RELIABILITY_RUNBOOK.md`.
 - [x] Windows local runtime profile documented: `docs/RUNTIME_RELIABILITY_RUNBOOK_WINDOWS.md`.
 
 ## 5) Functional UAT (Critical Flows, Local Telegram)
@@ -270,6 +270,21 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-28
 - Item: Section 9 local launch DoD confirmation
 - Evidence: Sections 1-5 contain no open critical items; backup/restore drill evidence already recorded on 2026-03-26 and runtime backup checks on 2026-03-27; latest `main` CI is green for HEAD `fe82dbc` (GitHub Actions run `23678984492`, workflow `CI`, `conclusion=success`)
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Optional Section 2 secret rotation policy closure
+- Evidence: `docs/SECRETS_RUNBOOK.md` includes explicit owner, 90-day rotation cadence for Telegram token and DB password, plus mandatory post-rotation validation steps (`verify_prod_env.ps1` + Telegram smoke) and evidence logging format
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Optional Section 4 Linux runtime profile closure
+- Evidence: `docs/RUNTIME_RELIABILITY_RUNBOOK.md` + `deploy/systemd/*` + `scripts/runtime_healthcheck.sh` define full `systemd`/journald/OnFailure profile (install commands, persistent logs, timer healthcheck, reboot verification, evidence requirements)
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 6 branch protection blocker revalidated
+- Evidence: `gh api repos/repetitorbel-ux/telegram_knowledge_base/branches/main/protection` -> HTTP 403 (`Upgrade to GitHub Pro or make this repository public to enable this feature`); items remain `[~]` pending plan/repo visibility change
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
