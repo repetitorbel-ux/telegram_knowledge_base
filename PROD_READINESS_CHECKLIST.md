@@ -75,26 +75,26 @@ Production-only controls are marked as optional.
 
 ## 7) Security & Access (Local)
 
-- [ ] Repository access reviewed (only required collaborators).
-- [ ] Local machine access baseline reviewed (OS account and file permissions).
-- [ ] DB user permissions scoped to required operations only (local DB user).
-- [ ] No sensitive values present in git history/new commits.
+- [x] Repository access reviewed (only required collaborators).
+- [x] Local machine access baseline reviewed (OS account and file permissions).
+- [x] DB user permissions scoped to required operations only (local DB user).
+- [x] No sensitive values present in git history/new commits.
 
 ## 8) Local Usage Plan
 
-- [ ] First stable local usage date/time and owner assigned.
-- [ ] Local rollback decision criteria defined.
-- [ ] First 24h local observation owner assigned.
-- [ ] Recovery checklist prepared for failures.
+- [x] First stable local usage date/time and owner assigned.
+- [x] Local rollback decision criteria defined.
+- [x] First 24h local observation owner assigned.
+- [x] Recovery checklist prepared for failures.
 
 ## 9) Definition Of Done For Local Launch
 
 Local launch is approved only when all conditions are true:
 
-- [ ] Sections 1-5 have no open critical items.
-- [ ] Backup + restore drill evidence is attached.
-- [ ] CI is green on latest `main`.
-- [ ] Local launch and rollback owners confirmed.
+- [x] Sections 1-5 have no open critical items.
+- [x] Backup + restore drill evidence is attached.
+- [x] CI is green on latest `main`.
+- [x] Local launch and rollback owners confirmed.
 
 ---
 
@@ -245,6 +245,31 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-28
 - Item: Section 4 close (reboot autostart + Telegram smoke)
 - Evidence: after local PC reboot PowerShell autostart ran `scripts/start_bot_local.ps1` (`Starting bot from D:\Development_codex\tg_db`, log `logs\bot_20260328_080437.log`); local check `pwsh ./scripts/runtime_healthcheck_local.ps1` -> `RUNTIME_CHECK: PASS`, `Process count: 1`; Telegram smoke confirms runtime and data path: `/stats` -> `Total entries: 8`, `New: 7`, `Verified: 1`; `/list limit=5` returns latest entries including `db3a893f-842d-405a-99aa-1f01c863e37f`, `899c4c42-f311-442a-ae5f-3120f044bf5b`, `e4138a7e-5925-462c-bbfa-1b1b8c32f00c`
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 7 partial close (repository access + secrets/history)
+- Evidence: GitHub collaborators check via `gh api repos/repetitorbel-ux/telegram_knowledge_base/collaborators --paginate --jq '.[].login'` returns single collaborator `repetitorbel-ux`; secret scan in working tree (`rg` for token/DSN patterns, excluding local artifacts) found only placeholders in `.env.example` and `env.production.example`; additional history scan (`git rev-list --all` + `git grep` for `ghp_`/`gho_`) found no matches
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 7 local machine access baseline reviewed
+- Evidence: `whoami` -> `asrockb85m\\codexsandboxoffline`; ACL snapshot collected for repo root and `.env` via `Get-Acl`; observed non-owner groups (`BUILTIN\\Пользователи`, `Все`) in ACL entries, to be considered in local hardening follow-up
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 7 DB user permissions scoped (local)
+- Evidence: connected via `psql` using `.env` `DATABASE_URL` normalized from `postgresql+asyncpg://` to `postgresql://`; current role `kb_bot_user` on DB `tg_kb`; role flags `super=false`, `createdb=false`, `createrole=false`; table grants in `public` limited to application DML set (SELECT/INSERT/UPDATE/DELETE and related REFERENCES/TRIGGER/TRUNCATE) for bot runtime tables; schema `public` has `USAGE=true`, `CREATE=true` retained for local migration flow (`alembic upgrade head`)
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 8 local usage plan defined
+- Evidence: first stable usage window assigned for 2026-03-29 10:00 (Europe/Minsk), owner `repetitorbel-ux`; first 24h observation owner `repetitorbel-ux`; rollback trigger criteria defined as any of: bot process count `0`, failed healthcheck, or critical command regression in `/start` `/stats` `/list`; recovery checklist basis: restart via `scripts/start_bot_local.ps1`, run `scripts/runtime_healthcheck_local.ps1`, use `/backup`/`/backups`/`/restore` flow from `docs/RESTORE_RUNBOOK.md`
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 9 local launch DoD confirmation
+- Evidence: Sections 1-5 contain no open critical items; backup/restore drill evidence already recorded on 2026-03-26 and runtime backup checks on 2026-03-27; latest `main` CI is green for HEAD `fe82dbc` (GitHub Actions run `23678984492`, workflow `CI`, `conclusion=success`)
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
