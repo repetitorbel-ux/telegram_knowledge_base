@@ -87,6 +87,8 @@ Release smoke options:
   - `docs/DEPLOY_RUNBOOK.md`
 - Runtime reliability (optional Linux profile: systemd/logging/alerts/reboot checks):
   - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
+- Runtime reliability (Windows local profile: Task Scheduler/log files/healthcheck):
+  - `docs/RUNTIME_RELIABILITY_RUNBOOK_WINDOWS.md`
 - Restore safety checklist and procedure:
   - `docs/RESTORE_RUNBOOK.md`
 - Secrets and configuration validation flow:

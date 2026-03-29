@@ -15,3 +15,7 @@ postgres_data/
 .e2e_pgdata/
 *.egg-info/
 manual operation/
+logs/
+backups/
+SESSION_HANDOFF_*.md
+pytest-cache-files-*/
