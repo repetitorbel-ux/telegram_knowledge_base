@@ -114,6 +114,34 @@ git pull origin main
 
 Use this path when `gh` is authenticated and working.
 
+## Solo profile (important)
+
+This repository currently uses a **solo-maintainer protection profile**:
+
+- branch protection on `main` is enabled
+- required status check is enabled (`test-and-migration-smoke`)
+- `required_approving_review_count` is intentionally set to `0`
+
+Why this matters:
+
+- in solo mode GitHub does not allow approving your own PR
+- if required reviews are set to `1`, merge will be blocked and creates unnecessary overhead
+- CI remains the hard merge gate for quality
+
+Quick verification command:
+
+```bash
+gh api repos/repetitorbel-ux/telegram_knowledge_base/branches/main/protection --jq '{required_reviews:.required_pull_request_reviews.required_approving_review_count, strict:.required_status_checks.strict, contexts:.required_status_checks.contexts, enforce_admins:.enforce_admins.enabled}'
+```
+
+Expected for solo mode:
+
+- `required_reviews: 0`
+- `contexts` includes `test-and-migration-smoke`
+- `strict: true`
+
+If this drifts back to `required_reviews: 1`, restore it before continuing normal flow.
+
 ## Sandbox notes for git commands
 
 Most local editing work can stay inside sandbox, but some git commands may fail there because of
