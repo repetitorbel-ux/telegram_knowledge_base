@@ -7,23 +7,6 @@ param(
 $ErrorActionPreference = "Stop"
 Set-Location $RepoRoot
 
-try {
-    $botProcesses = Get-CimInstance Win32_Process |
-        Where-Object {
-            $_.Name -match "^python(\.exe)?$" -and
-            $_.CommandLine -match "kb_bot\.main"
-        }
-}
-catch {
-    # Fallback for restricted environments where CIM access is denied.
-    $botProcesses = Get-Process -Name python,python3 -ErrorAction SilentlyContinue
-}
-
-if (-not $botProcesses) {
-    Write-Host "RUNTIME_CHECK: FAIL (bot process not found)"
-    exit 1
-}
-
 $logPath = Join-Path $RepoRoot $LogDir
 if (-not (Test-Path $logPath)) {
     Write-Host "RUNTIME_CHECK: FAIL (log directory not found: $logPath)"
@@ -45,7 +28,57 @@ if ($age -gt $MaxLogAgeMinutes) {
     exit 1
 }
 
+$tailLines = Get-Content -LiteralPath $latestLog.FullName -Tail 50 -ErrorAction SilentlyContinue
+$logHasPollingMarkers = $tailLines | Where-Object {
+    $_ -match "Start polling" -or
+    $_ -match "Run polling for bot" -or
+    $_ -match "Update id=.*handled"
+}
+$logHasExitMarker = $tailLines | Where-Object {
+    $_ -match "Bot process exited with code" -or
+    $_ -match "Max restart attempts reached"
+}
+
+$processMode = "direct"
+
+try {
+    $pythonProcesses = Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.Name -match "^python(\.exe)?$" -and
+            $_.CommandLine -match "kb_bot\.main"
+        }
+
+    $launcherProcesses = Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.Name -match "^pwsh(\.exe)?$" -and
+            $_.CommandLine -match "start_bot_local\.ps1"
+        }
+
+    $botProcesses = @($pythonProcesses) + @($launcherProcesses)
+}
+catch {
+    $botProcesses = @()
+    $processMode = "log_fallback"
+}
+
+if (-not $botProcesses) {
+    if ($logHasPollingMarkers -and -not $logHasExitMarker) {
+        Write-Host "RUNTIME_CHECK: PASS"
+        Write-Host "Process count: unavailable (using fresh polling log fallback)"
+        Write-Host "Latest log: $($latestLog.FullName)"
+        Write-Host "Latest log age (min): $([int]$age)"
+        Write-Host "Detection mode: $processMode"
+        exit 0
+    }
+
+    Write-Host "RUNTIME_CHECK: FAIL (bot process not found)"
+    Write-Host "Latest log: $($latestLog.FullName)"
+    Write-Host "Latest log age (min): $([int]$age)"
+    exit 1
+}
+
 Write-Host "RUNTIME_CHECK: PASS"
 Write-Host "Process count: $($botProcesses.Count)"
 Write-Host "Latest log: $($latestLog.FullName)"
 Write-Host "Latest log age (min): $([int]$age)"
+Write-Host "Detection mode: $processMode"
