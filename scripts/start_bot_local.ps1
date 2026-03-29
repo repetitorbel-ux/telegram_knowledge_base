@@ -34,6 +34,27 @@ function Get-TelegramApiAddresses {
     }
 }
 
+function Test-TelegramApiTcpConnect {
+    param(
+        [int]$TimeoutMs = 5000
+    )
+
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $async = $client.BeginConnect("api.telegram.org", 443, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            return $false
+        }
+
+        $client.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $client.Dispose()
+    }
+}
+
 $attempt = 0
 while ($true) {
     $attempt += 1
@@ -49,8 +70,12 @@ while ($true) {
         $resolved = ($addresses | ForEach-Object { $_.IPAddressToString }) -join ", "
         Add-Content -LiteralPath $logFile -Value "[$ts] DNS api.telegram.org -> $resolved"
         if ($addresses | Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork -and $_.IPAddressToString -like '127.*' }) {
-            $badLoopback = $true
-            Add-Content -LiteralPath $logFile -Value "[$ts] DNS check failed: loopback address detected for api.telegram.org"
+            if (Test-TelegramApiTcpConnect) {
+                Add-Content -LiteralPath $logFile -Value "[$ts] Loopback-like DNS address accepted because TCP connect to api.telegram.org:443 succeeded (likely proxified resolution)."
+            } else {
+                $badLoopback = $true
+                Add-Content -LiteralPath $logFile -Value "[$ts] DNS check failed: loopback address detected for api.telegram.org and TCP connect probe failed"
+            }
         }
     }
 
