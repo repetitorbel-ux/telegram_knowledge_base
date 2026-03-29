@@ -69,8 +69,8 @@ Production-only controls are marked as optional.
 ## 6) CI/CD & Quality Gates
 
 - [x] CI workflow exists for migrations + tests (`.github/workflows/ci.yml`).
-- [~] Branch protection for `main` enabled (PR required, no direct pushes) - blocked by current GitHub plan for private repo.
-- [~] Required checks configured on PR merge - blocked together with branch protection on current plan.
+- [x] Branch protection for `main` enabled (PR required, no direct pushes).
+- [x] Required checks configured on PR merge.
 - [x] Release notes/changelog convention agreed.
 
 ## 7) Security & Access (Local)
@@ -285,6 +285,11 @@ Use this section to record proof links and timestamps.
 - Date: 2026-03-28
 - Item: Section 6 branch protection blocker revalidated
 - Evidence: `gh api repos/repetitorbel-ux/telegram_knowledge_base/branches/main/protection` -> HTTP 403 (`Upgrade to GitHub Pro or make this repository public to enable this feature`); items remain `[~]` pending plan/repo visibility change
+- Owner: team
+
+- Date: 2026-03-28
+- Item: Section 6 branch protection and required checks validated as active
+- Evidence: validation PR `#15` (`test: validate branch protection behavior`) rejected immediate merge (`base branch policy prohibits the merge`); direct push test `git push origin test/branch-protection-validation-20260328:main` rejected with `GH006 Protected branch update failed` and `At least 1 approving review is required`; PR closed after verification
 - Owner: team
 
 ## Repo-Verified Snapshot (2026-03-26)
