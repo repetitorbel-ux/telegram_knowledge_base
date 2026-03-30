@@ -10,6 +10,7 @@ from kb_bot.bot.handlers.menu import (
     _parse_page_callback,
     _parse_status_update_callback,
     _resolve_entry_back_action,
+    _resolve_status_back_action,
     _render_backups_list_screen,
     _render_collection_result_screen,
     _render_entry_detail_screen,
@@ -324,6 +325,50 @@ def test_parse_entry_view_callback_with_back_context() -> None:
     assert back_callback == f"{SEARCH_PAGE_PREFIX}2"
 
 
+def test_entry_view_chain_resolves_search_back_context_to_detail_keyboard() -> None:
+    parsed = _parse_entry_view_callback(
+        f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{SEARCH_PAGE_PREFIX}2"
+    )
+    assert parsed is not None
+    _, entry_back_callback = parsed
+    back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
+
+    keyboard = build_entry_detail_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        ["To Read"],
+        back_callback=back_callback,
+        back_text=back_text,
+    )
+    callback_map = {
+        button.text: button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    }
+    assert callback_map["Назад к поиску"] == f"{SEARCH_PAGE_PREFIX}2"
+
+
+def test_entry_view_chain_resolves_collections_back_context_to_detail_keyboard() -> None:
+    parsed = _parse_entry_view_callback(
+        f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{MENU_COLLECTIONS}"
+    )
+    assert parsed is not None
+    _, entry_back_callback = parsed
+    back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
+
+    keyboard = build_entry_detail_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        ["To Read"],
+        back_callback=back_callback,
+        back_text=back_text,
+    )
+    callback_map = {
+        button.text: button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    }
+    assert callback_map["К коллекциям"] == MENU_COLLECTIONS
+
+
 def test_resolve_entry_back_action_for_search_page() -> None:
     callback, text = _resolve_entry_back_action(f"{SEARCH_PAGE_PREFIX}2")
     assert callback == f"{SEARCH_PAGE_PREFIX}2"
@@ -344,6 +389,23 @@ def test_resolve_entry_back_action_for_collections() -> None:
 
 def test_resolve_entry_back_action_for_unknown_callback_fallbacks_to_filters() -> None:
     callback, text = _resolve_entry_back_action("unexpected:callback")
+    assert callback == MENU_LIST
+    assert text == "Назад к фильтрам"
+
+
+def test_resolve_status_back_action_uses_state_stored_text_override() -> None:
+    callback, text = _resolve_status_back_action(
+        {
+            "entry_back_callback": f"{SEARCH_PAGE_PREFIX}1",
+            "entry_back_text": "Назад в результаты",
+        }
+    )
+    assert callback == f"{SEARCH_PAGE_PREFIX}1"
+    assert text == "Назад в результаты"
+
+
+def test_resolve_status_back_action_fallbacks_to_default_when_state_is_incomplete() -> None:
+    callback, text = _resolve_status_back_action({})
     assert callback == MENU_LIST
     assert text == "Назад к фильтрам"
 

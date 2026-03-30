@@ -345,10 +345,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             return
         entry_id, status_name = parsed
         state_data = await state.get_data()
-        back_callback, back_text = _resolve_entry_back_action(state_data.get("entry_back_callback"))
-        stored_back_text = state_data.get("entry_back_text")
-        if isinstance(stored_back_text, str) and stored_back_text.strip():
-            back_text = stored_back_text
+        back_callback, back_text = _resolve_status_back_action(state_data)
 
         async with session_factory() as session:
             service = EntryService(
@@ -982,6 +979,14 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
     if entry_back_callback == MENU_LIST:
         return MENU_LIST, "Назад к фильтрам"
     return MENU_LIST, "Назад к фильтрам"
+
+
+def _resolve_status_back_action(state_data: dict):
+    back_callback, back_text = _resolve_entry_back_action(state_data.get("entry_back_callback"))
+    stored_back_text = state_data.get("entry_back_text")
+    if isinstance(stored_back_text, str) and stored_back_text.strip():
+        return back_callback, stored_back_text.strip()
+    return back_callback, back_text
 
 
 def _parse_uuid_string(raw: str | None):
