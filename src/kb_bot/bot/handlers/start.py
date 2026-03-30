@@ -2,29 +2,32 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from kb_bot.bot.ui.keyboards import build_main_menu_keyboard
+
 router = Router()
+
+
+def render_welcome_text() -> str:
+    return (
+        "Telegram KB Bot готов к работе.\n\n"
+        "Теперь можно пользоваться не только командами, но и кнопками меню ниже.\n"
+        "Основные сценарии уже доступны через UI, а команды сохраняются как резервный режим.\n\n"
+        "Быстрые действия:\n"
+        "- Добавить запись\n"
+        "- Искать по базе\n"
+        "- Смотреть быстрые списки\n"
+        "- Открывать темы и статистику\n\n"
+        "Если предпочитаете команды, они тоже работают: /add, /search, /list, /topics, /stats."
+    )
+
+
+def render_restart_text() -> str:
+    return (
+        "Бот перезапущен и снова готов к работе.\n\n"
+        "Главное меню уже прикреплено ниже, так что вводить /start после каждого рестарта не нужно."
+    )
 
 
 @router.message(Command("start"))
 async def start_handler(message: Message) -> None:
-    await message.answer(
-        "Telegram KB Bot MVP is running.\n"
-        "Commands:\n"
-        "/start - health and help\n"
-        "/topics - list available topics\n"
-        "/add - add URL or note entry\n"
-        "/search <query> - search entries\n"
-        "/status <entry_uuid> <status name> - update entry status\n"
-        "/entry <entry_uuid> - show entry details\n"
-        "/list [status=New] [topic=<uuid>] [limit=20] - list entries\n"
-        "/topic_add <name> OR /topic_add <parent_uuid|root> <name>\n"
-        "/topic_rename <topic_uuid> <new_name>\n"
-        "/collection_add <name> [status=...] [topic=...] [limit=...]\n"
-        "/collections\n"
-        "/collection_run <collection_uuid>\n"
-        "/import (then send .csv/.json document with caption /import)\n"
-        "/export [json|csv] [status=...] [topic=...] [limit=...]\n"
-        "/backup | /backups | /restore_token <backup_uuid> | /restore <backup_uuid> <token>\n"
-        "/stats\n"
-        "Forward any Telegram message to save it automatically"
-    )
+    await message.answer(render_welcome_text(), reply_markup=build_main_menu_keyboard())

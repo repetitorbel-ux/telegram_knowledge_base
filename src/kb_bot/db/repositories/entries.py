@@ -23,7 +23,12 @@ class EntriesRepository:
         await self.session.refresh(entry)
         return entry
 
-    async def search(self, query: str, limit: int = 10) -> list[tuple[KnowledgeEntry, str]]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[tuple[KnowledgeEntry, str]]:
         pattern = f"%{query.strip()}%"
         stmt = (
             select(KnowledgeEntry, Status.display_name)
@@ -36,6 +41,7 @@ class EntriesRepository:
                 )
             )
             .order_by(KnowledgeEntry.saved_date.desc())
+            .offset(offset)
             .limit(limit)
         )
         result = await self.session.execute(stmt)
@@ -73,12 +79,14 @@ class EntriesRepository:
         status_name: str | None = None,
         topic_id: uuid.UUID | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[tuple[KnowledgeEntry, str, str]]:
         stmt = (
             select(KnowledgeEntry, Status.display_name, Topic.name)
             .join(Status, Status.id == KnowledgeEntry.status_id)
             .join(Topic, Topic.id == KnowledgeEntry.primary_topic_id)
             .order_by(KnowledgeEntry.saved_date.desc())
+            .offset(offset)
             .limit(limit)
         )
         if status_name:

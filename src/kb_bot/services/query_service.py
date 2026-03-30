@@ -39,8 +39,14 @@ class QueryService:
         status_name: str | None = None,
         topic_id: uuid.UUID | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[EntryDetail]:
-        rows = await self.entries_repo.list_entries(status_name=status_name, topic_id=topic_id, limit=limit)
+        rows = await self.entries_repo.list_entries(
+            status_name=status_name,
+            topic_id=topic_id,
+            limit=limit,
+            offset=offset,
+        )
         return [
             EntryDetail(
                 entry_id=entry.id,
@@ -53,4 +59,3 @@ class QueryService:
             )
             for entry, status, topic_name in rows
         ]
-
