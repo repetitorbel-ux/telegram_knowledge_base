@@ -270,7 +270,11 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await _show_screen(
             callback,
             "Быстрые списки.\n"
-            "Выберите, какие записи показать.",
+            "Выберите, какие записи показать.\n\n"
+            "Подсказка по статусам:\n"
+            "- New: входящий поток\n"
+            "- To Read: очередь на разбор\n"
+            "- Verified: проверенные материалы",
             build_list_filters_keyboard(),
         )
 
@@ -775,7 +779,14 @@ def _render_topic_detail_screen(topic: TopicDTO) -> str:
 def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int = 0) -> str:
     header = title if page == 0 else f"{title} (страница {page + 1})"
     if not items:
-        return f"{header}:\nЗаписей не найдено."
+        return (
+            f"{header}:\n"
+            "Записей не найдено.\n\n"
+            "Что можно сделать дальше:\n"
+            "- вернуться к быстрым фильтрам;\n"
+            "- выбрать другой статус;\n"
+            "- добавить новую запись через меню."
+        )
 
     lines = [header + ":"]
     for item in items:
@@ -792,7 +803,11 @@ def _render_collection_result_screen(view: SavedViewDTO, items: list[EntryDetail
         f"Лимит: {snapshot.get('limit') or '-'}"
     )
     if not items:
-        return summary + "\n\nДля текущих фильтров записей не найдено."
+        return (
+            summary
+            + "\n\nДля текущих фильтров записей не найдено.\n"
+            "Проверьте фильтр статуса/темы или увеличьте лимит."
+        )
     return summary + "\n\nВыберите запись кнопкой ниже."
 
 
@@ -807,7 +822,10 @@ def _render_backups_list_screen(rows: list) -> str:
 
 def _render_search_results_screen(items: list, query: str, *, page: int = 0) -> str:
     if not items:
-        return f"По запросу `{query}` ничего не найдено."
+        return (
+            f"По запросу `{query}` ничего не найдено.\n"
+            "Попробуйте уточнить формулировку или сократить запрос."
+        )
     page_hint = "" if page == 0 else f" (страница {page + 1})"
     return (
         f"Результаты поиска по запросу `{query}`{page_hint}:\n"
@@ -819,11 +837,11 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
     return (
         "Карточка записи:\n"
         f"ID: `{detail.entry_id}`\n"
-        f"Title: {detail.title}\n"
-        f"Status: {detail.status_name}\n"
-        f"Topic: {detail.topic_name}\n"
+        f"Заголовок: {detail.title}\n"
+        f"Статус: {detail.status_name}\n"
+        f"Тема: {detail.topic_name}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
-        f"Notes: {detail.notes or '-'}"
+        f"Заметки: {detail.notes or '-'}"
     )
 
 

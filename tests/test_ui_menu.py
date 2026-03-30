@@ -38,6 +38,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_EXPORT_CSV,
     MENU_EXPORT_JSON,
     MENU_IMPORT_START,
+    MENU_LIST,
     MENU_MAIN,
     MENU_STATS,
     MENU_TOPIC_CREATE,
@@ -164,6 +165,13 @@ def test_render_entry_list_screen_contains_titles() -> None:
     assert "Example title [New] (Python)" in text
 
 
+def test_render_entry_list_screen_empty_contains_next_steps() -> None:
+    text = _render_entry_list_screen([], "Статус Verified", page=0)
+    assert "Записей не найдено." in text
+    assert "Что можно сделать дальше:" in text
+    assert "выбрать другой статус" in text
+
+
 def test_add_topic_picker_keyboard_contains_topic_callbacks() -> None:
     topics = [
         TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
@@ -261,6 +269,7 @@ def test_render_search_results_screen_prompts_selection() -> None:
 def test_render_search_results_screen_empty() -> None:
     text = _render_search_results_screen([], "unlikely_query")
     assert "ничего не найдено" in text.lower()
+    assert "уточнить формулировку" in text.lower()
 
 
 def test_render_entry_detail_screen_contains_fields() -> None:
@@ -275,6 +284,8 @@ def test_render_entry_detail_screen_contains_fields() -> None:
     )
     text = _render_entry_detail_screen(detail)
     assert "Карточка записи:" in text
+    assert "Заголовок:" in text
+    assert "Статус:" in text
     assert "Entry title" in text
     assert "Python" in text
 
@@ -319,9 +330,32 @@ def test_resolve_entry_back_action_for_search_page() -> None:
     assert text == "Назад к поиску"
 
 
+def test_resolve_entry_back_action_for_list_page() -> None:
+    callback, text = _resolve_entry_back_action(f"{LIST_PAGE_PREFIX}verified:3")
+    assert callback == f"{LIST_PAGE_PREFIX}verified:3"
+    assert text == "Назад к списку"
+
+
+def test_resolve_entry_back_action_for_collections() -> None:
+    callback, text = _resolve_entry_back_action(MENU_COLLECTIONS)
+    assert callback == MENU_COLLECTIONS
+    assert text == "К коллекциям"
+
+
+def test_resolve_entry_back_action_for_unknown_callback_fallbacks_to_filters() -> None:
+    callback, text = _resolve_entry_back_action("unexpected:callback")
+    assert callback == MENU_LIST
+    assert text == "Назад к фильтрам"
+
+
 def test_parse_list_page_callback() -> None:
     parsed = _parse_list_page_callback(f"{LIST_PAGE_PREFIX}new:2")
     assert parsed == ("new", 2)
+
+
+def test_parse_list_page_callback_rejects_unknown_kind() -> None:
+    parsed = _parse_list_page_callback(f"{LIST_PAGE_PREFIX}archived:2")
+    assert parsed is None
 
 
 def test_parse_page_callback() -> None:
@@ -394,6 +428,17 @@ def test_render_collection_result_screen_contains_summary() -> None:
     assert "Коллекция: Verified items" in text
     assert "status: Verified" in text
     assert "Выберите запись" in text
+
+
+def test_render_collection_result_screen_empty_contains_guidance() -> None:
+    collection = SavedViewDTO(
+        id="33333333-3333-3333-3333-333333333333",
+        name="Verified items",
+        filter_snapshot={"status_name": "Verified", "topic_id": None, "limit": 10},
+    )
+    text = _render_collection_result_screen(collection, [])
+    assert "записей не найдено" in text.lower()
+    assert "увеличьте лимит" in text.lower()
 
 
 def test_render_backups_list_screen_contains_rows() -> None:
