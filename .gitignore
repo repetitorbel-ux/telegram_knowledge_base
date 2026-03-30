@@ -19,3 +19,4 @@ logs/
 backups/
 SESSION_HANDOFF_*.md
 pytest-cache-files-*/
+instructions/

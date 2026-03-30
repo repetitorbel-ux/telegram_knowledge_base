@@ -292,6 +292,31 @@ Use this section to record proof links and timestamps.
 - Evidence: validation PR `#15` (`test: validate branch protection behavior`) rejected immediate merge (`base branch policy prohibits the merge`); direct push test `git push origin test/branch-protection-validation-20260328:main` rejected with `GH006 Protected branch update failed` and `At least 1 approving review is required`; PR closed after verification
 - Owner: team
 
+- Date: 2026-03-30
+- Item: Section 5 local pre-UAT smoke rerun
+- Evidence: `pwsh ./scripts/section5_local_smoke.ps1` -> `22 passed`, `SECTION5_LOCAL_SMOKE: PASS`
+- Owner: team
+
+- Date: 2026-03-30
+- Item: Section 4 runtime follow-up rerun
+- Evidence: `pwsh ./scripts/runtime_healthcheck_local.ps1` -> `RUNTIME_CHECK: FAIL (latest log is stale: 109 min)`; latest local log `logs/bot_20260330_080913.log`; fresh runtime evidence still requires host-terminal restart/healthcheck with `Psiphon + Proxifier`
+- Owner: team
+
+- Date: 2026-03-30
+- Item: Section 4 runtime live revalidation with proxy stack
+- Evidence: with `Psiphon + Proxifier` active, `pwsh ./scripts/start_bot_local.ps1` started successfully and created log file; host-terminal run `pwsh ./scripts/runtime_healthcheck_local.ps1` -> `RUNTIME_CHECK: PASS`, `Process count: 2`, `Latest log: D:\Development_codex\tg_db\logs\bot_20260330_080913.log`, `Latest log age (min): 4`, `Detection mode: direct`
+- Owner: team
+
+- Date: 2026-03-30
+- Item: Section 5 live Telegram smoke rerun
+- Evidence: live bot validated via `/start`, `/stats`, `/list limit=5`; all commands returned expected results under current proxified runtime
+- Owner: team
+
+- Date: 2026-03-30
+- Item: Section 3 runtime backup checks rerun
+- Evidence: new `/backup` records confirmed by `/backups`: `b3eefdd4-4f34-4a85-990f-1b508b8a6445` -> `tg_kb_20260330_070532.dump` -> `4292c35db12a1af070258bf72434035019d5254aae5cb0122fa454829ff3af97`; additional new record `a4abcb07-0270-47f3-bbb5-9607f369e834` -> `tg_kb_20260330_070518.dump` -> `c0a1b62857395c8a6d67ba8104ed527581a8c13ee7390fef7da58d794413062e`
+- Owner: team
+
 ## Repo-Verified Snapshot (2026-03-26)
 
 - `CI workflow exists`:
@@ -304,6 +329,6 @@ Use this section to record proof links and timestamps.
 
 ## Next Session Priority
 
-1. Run Section 5 UAT on local Telegram environment using `docs/UAT_SECTION5_TEMPLATE.md`.
-2. Choose and apply local runtime strategy for Section 4 (autostart/logging/error visibility).
-3. Complete Section 3 backup runtime checks (`/backup`, `/backups`) and attach evidence.
+1. Finish the git cycle for the current documentation/evidence update branch and publish the PR to `main`.
+2. Keep the practical runtime rule in place for local operation: start `Psiphon + Proxifier` before bot runtime validation.
+3. Return to direct Telegram connectivity investigation only when it becomes a separate scheduled task.
