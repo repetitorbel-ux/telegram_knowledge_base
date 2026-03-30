@@ -6,3 +6,14 @@ class AddEntryStates(StatesGroup):
     waiting_title = State()
     waiting_topic = State()
 
+
+class GuidedSearchStates(StatesGroup):
+    waiting_query = State()
+
+
+class TopicCreateStates(StatesGroup):
+    waiting_name = State()
+
+
+class TopicRenameStates(StatesGroup):
+    waiting_name = State()

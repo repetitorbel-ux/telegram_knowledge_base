@@ -3,6 +3,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from kb_bot.bot.handlers.menu import _allowed_target_statuses, _render_entry_detail_screen
+from kb_bot.bot.ui.keyboards import build_entry_detail_keyboard
 from kb_bot.core.entry_parsing import parse_entry_command
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.services.query_service import QueryService
@@ -27,14 +29,11 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
             return
 
         await message.answer(
-            f"Entry details:\n"
-            f"ID: `{detail.entry_id}`\n"
-            f"Title: {detail.title}\n"
-            f"Status: {detail.status_name}\n"
-            f"Topic: {detail.topic_name}\n"
-            f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
-            f"Notes: {detail.notes or '-'}"
+            _render_entry_detail_screen(detail),
+            reply_markup=build_entry_detail_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+            ),
         )
 
     return router
-

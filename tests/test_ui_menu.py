@@ -1,0 +1,280 @@
+import os
+
+os.environ.pop("SSLKEYLOGFILE", None)
+
+from kb_bot.bot.handlers.menu import (
+    _allowed_target_statuses,
+    _parse_entry_id_from_callback,
+    _parse_status_update_callback,
+    _render_collection_result_screen,
+    _render_entry_detail_screen,
+    _render_entry_list_screen,
+    _render_search_results_screen,
+    _render_stats_screen,
+    _render_topic_detail_screen,
+    _render_topics_screen,
+)
+from kb_bot.bot.handlers.start import render_welcome_text
+from kb_bot.bot.ui.callbacks import (
+    ADD_TOPIC_PREFIX,
+    COLLECTION_VIEW_PREFIX,
+    ENTRY_STATUS_PREFIX,
+    ENTRY_VIEW_PREFIX,
+    LIST_NEW,
+    MENU_ADD,
+    MENU_CANCEL_FLOW,
+    MENU_COLLECTIONS,
+    MENU_MAIN,
+    MENU_STATS,
+    MENU_TOPIC_CREATE,
+    MENU_TOPICS,
+    TOPIC_RENAME_PREFIX,
+    TOPIC_VIEW_PREFIX,
+)
+from kb_bot.bot.ui.keyboards import (
+    build_add_topic_picker_keyboard,
+    build_collections_keyboard,
+    build_entry_detail_keyboard,
+    build_entry_results_keyboard,
+    build_flow_navigation_keyboard,
+    build_list_filters_keyboard,
+    build_main_menu_keyboard,
+    build_topic_detail_keyboard,
+    build_topics_keyboard,
+)
+from kb_bot.domain.dto import TopicDTO
+from kb_bot.services.collection_service import SavedViewDTO
+from kb_bot.services.query_service import EntryDetail
+
+
+def test_render_welcome_text_mentions_menu_and_commands() -> None:
+    text = render_welcome_text()
+    assert "кнопками меню" in text
+    assert "/add" in text
+    assert "/stats" in text
+
+
+def test_main_menu_keyboard_contains_expected_actions() -> None:
+    keyboard = build_main_menu_keyboard()
+    callback_map = {
+        button.text: button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    }
+    assert callback_map["Добавить"] == MENU_ADD
+    assert callback_map["Статистика"] == MENU_STATS
+
+
+def test_flow_navigation_keyboard_contains_cancel_and_home() -> None:
+    keyboard = build_flow_navigation_keyboard()
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_MAIN in callbacks
+    assert MENU_CANCEL_FLOW in callbacks
+
+
+def test_list_filters_keyboard_contains_quick_filters() -> None:
+    keyboard = build_list_filters_keyboard()
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert LIST_NEW in callbacks
+
+
+def test_render_topics_screen_uses_hierarchy() -> None:
+    topics = [
+        TopicDTO(id="ignored", name="Root", full_path="Root", level=0),
+        TopicDTO(id="ignored", name="Child", full_path="Root.Child", level=1),
+    ]
+    text = _render_topics_screen(topics)
+    assert "Темы:" in text
+    assert "- Root" in text
+    assert "  - Child" in text
+
+
+def test_render_stats_screen_contains_summary() -> None:
+    text = _render_stats_screen(
+        {
+            "total_entries": 5,
+            "inbox_size": 2,
+            "backlog": 1,
+            "verified_coverage": 0.2,
+            "duplicates_prevented": 3,
+            "by_status": {"New": 2, "Verified": 1},
+            "by_topic": {"Python": 4},
+        }
+    )
+    assert "Всего записей: 5" in text
+    assert "По статусам:" in text
+    assert "Python: 4" in text
+
+
+def test_render_entry_list_screen_contains_titles() -> None:
+    items = [
+        EntryDetail(
+            entry_id="ignored",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    text = _render_entry_list_screen(items, "Последние записи")
+    assert "Последние записи:" in text
+    assert "Example title [New] (Python)" in text
+
+
+def test_add_topic_picker_keyboard_contains_topic_callbacks() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+        TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Child", full_path="Root.Child", level=1),
+    ]
+    keyboard = build_add_topic_picker_keyboard(topics)
+    topic_callbacks = [
+        button.callback_data
+        for row in keyboard.inline_keyboard[:-2]
+        for button in row
+    ]
+    assert f"{ADD_TOPIC_PREFIX}11111111-1111-1111-1111-111111111111" in topic_callbacks
+    assert f"{ADD_TOPIC_PREFIX}22222222-2222-2222-2222-222222222222" in topic_callbacks
+
+
+def test_entry_results_keyboard_contains_entry_buttons() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(items, include_back_to_list=True)
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert MENU_MAIN in callbacks
+
+
+def test_entry_detail_keyboard_contains_status_actions() -> None:
+    keyboard = build_entry_detail_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        ["To Read", "Important"],
+        include_back_to_list=True,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:To Read" in callbacks
+    assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:Important" in callbacks
+
+
+def test_render_search_results_screen_prompts_selection() -> None:
+    text = _render_search_results_screen([object()], "backup")
+    assert "backup" in text
+    assert "Выберите запись" in text
+
+
+def test_render_entry_detail_screen_contains_fields() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="some notes",
+    )
+    text = _render_entry_detail_screen(detail)
+    assert "Карточка записи:" in text
+    assert "Entry title" in text
+    assert "Python" in text
+
+
+def test_allowed_target_statuses_follow_status_machine() -> None:
+    statuses = _allowed_target_statuses("New")
+    assert "To Read" in statuses
+    assert "Verified" not in statuses
+
+
+def test_parse_entry_id_from_callback() -> None:
+    parsed = _parse_entry_id_from_callback(
+        f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111",
+        ENTRY_VIEW_PREFIX,
+    )
+    assert str(parsed) == "11111111-1111-1111-1111-111111111111"
+
+
+def test_parse_status_update_callback() -> None:
+    parsed = _parse_status_update_callback(
+        f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:To Read"
+    )
+    assert parsed is not None
+    entry_id, status_name = parsed
+    assert str(entry_id) == "11111111-1111-1111-1111-111111111111"
+    assert status_name == "To Read"
+
+
+def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+    ]
+    keyboard = build_topics_keyboard(topics)
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_TOPIC_CREATE in callbacks
+    assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_topic_detail_keyboard_contains_rename_action() -> None:
+    keyboard = build_topic_detail_keyboard("11111111-1111-1111-1111-111111111111")
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert MENU_TOPICS in callbacks
+
+
+def test_collections_keyboard_contains_collection_callbacks() -> None:
+    collections = [
+        SavedViewDTO(
+            id="33333333-3333-3333-3333-333333333333",
+            name="New items",
+            filter_snapshot={"status_name": "New", "topic_id": None, "limit": 20},
+        )
+    ]
+    keyboard = build_collections_keyboard(collections)
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{COLLECTION_VIEW_PREFIX}33333333-3333-3333-3333-333333333333" in callbacks
+    assert MENU_COLLECTIONS in callbacks
+
+
+def test_render_topic_detail_screen_contains_fields() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="Python",
+        full_path="Programming.Python",
+        level=1,
+    )
+    text = _render_topic_detail_screen(topic)
+    assert "Карточка темы:" in text
+    assert "Python" in text
+    assert "Programming.Python" in text
+
+
+def test_render_collection_result_screen_contains_summary() -> None:
+    collection = SavedViewDTO(
+        id="33333333-3333-3333-3333-333333333333",
+        name="Verified items",
+        filter_snapshot={"status_name": "Verified", "topic_id": None, "limit": 10},
+    )
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Entry title",
+            status_name="Verified",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    text = _render_collection_result_screen(collection, items)
+    assert "Коллекция: Verified items" in text
+    assert "status: Verified" in text
+    assert "Выберите запись" in text
