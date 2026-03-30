@@ -4,8 +4,13 @@ os.environ.pop("SSLKEYLOGFILE", None)
 
 from kb_bot.bot.handlers.menu import (
     _allowed_target_statuses,
+    _parse_entry_view_callback,
     _parse_entry_id_from_callback,
+    _parse_list_page_callback,
+    _parse_page_callback,
     _parse_status_update_callback,
+    _resolve_entry_back_action,
+    _render_backups_list_screen,
     _render_collection_result_screen,
     _render_entry_detail_screen,
     _render_entry_list_screen,
@@ -14,29 +19,41 @@ from kb_bot.bot.handlers.menu import (
     _render_topic_detail_screen,
     _render_topics_screen,
 )
-from kb_bot.bot.handlers.start import render_welcome_text
+from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_NEW,
+    LIST_PAGE_PREFIX,
     MENU_ADD,
+    MENU_BACKUPS,
+    MENU_BACKUP_CREATE,
+    MENU_BACKUP_LIST,
     MENU_CANCEL_FLOW,
     MENU_COLLECTIONS,
+    MENU_HELP,
+    MENU_IMPORT_EXPORT,
+    MENU_EXPORT_CSV,
+    MENU_EXPORT_JSON,
+    MENU_IMPORT_START,
     MENU_MAIN,
     MENU_STATS,
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
+    SEARCH_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
 from kb_bot.bot.ui.keyboards import (
     build_add_topic_picker_keyboard,
+    build_backups_keyboard,
     build_collections_keyboard,
     build_entry_detail_keyboard,
     build_entry_results_keyboard,
     build_flow_navigation_keyboard,
+    build_import_export_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
     build_topic_detail_keyboard,
@@ -54,6 +71,12 @@ def test_render_welcome_text_mentions_menu_and_commands() -> None:
     assert "/stats" in text
 
 
+def test_render_restart_text_mentions_restart_behavior() -> None:
+    text = render_restart_text()
+    assert "перезапущен" in text
+    assert "/start" in text or "не нужно" in text
+
+
 def test_main_menu_keyboard_contains_expected_actions() -> None:
     keyboard = build_main_menu_keyboard()
     callback_map = {
@@ -62,6 +85,9 @@ def test_main_menu_keyboard_contains_expected_actions() -> None:
         for button in row
     }
     assert callback_map["Добавить"] == MENU_ADD
+    assert callback_map["Импорт/экспорт"] == MENU_IMPORT_EXPORT
+    assert callback_map["Бэкапы"] == MENU_BACKUPS
+    assert callback_map["Подсказка по командам"] == MENU_HELP
     assert callback_map["Статистика"] == MENU_STATS
 
 
@@ -76,6 +102,21 @@ def test_list_filters_keyboard_contains_quick_filters() -> None:
     keyboard = build_list_filters_keyboard()
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert LIST_NEW in callbacks
+
+
+def test_import_export_keyboard_contains_actions() -> None:
+    keyboard = build_import_export_keyboard()
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_IMPORT_START in callbacks
+    assert MENU_EXPORT_CSV in callbacks
+    assert MENU_EXPORT_JSON in callbacks
+
+
+def test_backups_keyboard_contains_actions() -> None:
+    keyboard = build_backups_keyboard()
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_BACKUP_CREATE in callbacks
+    assert MENU_BACKUP_LIST in callbacks
 
 
 def test_render_topics_screen_uses_hierarchy() -> None:
@@ -156,6 +197,50 @@ def test_entry_results_keyboard_contains_entry_buttons() -> None:
     assert MENU_MAIN in callbacks
 
 
+def test_entry_results_keyboard_contains_pagination_callbacks() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        page=1,
+        has_prev_page=True,
+        has_next_page=True,
+        page_callback_prefix=f"{LIST_PAGE_PREFIX}all:",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{LIST_PAGE_PREFIX}all:0" in callbacks
+    assert f"{LIST_PAGE_PREFIX}all:2" in callbacks
+
+
+def test_entry_results_keyboard_contains_entry_back_context() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+
+
 def test_entry_detail_keyboard_contains_status_actions() -> None:
     keyboard = build_entry_detail_keyboard(
         "11111111-1111-1111-1111-111111111111",
@@ -171,6 +256,11 @@ def test_render_search_results_screen_prompts_selection() -> None:
     text = _render_search_results_screen([object()], "backup")
     assert "backup" in text
     assert "Выберите запись" in text
+
+
+def test_render_search_results_screen_empty() -> None:
+    text = _render_search_results_screen([], "unlikely_query")
+    assert "ничего не найдено" in text.lower()
 
 
 def test_render_entry_detail_screen_contains_fields() -> None:
@@ -211,6 +301,32 @@ def test_parse_status_update_callback() -> None:
     entry_id, status_name = parsed
     assert str(entry_id) == "11111111-1111-1111-1111-111111111111"
     assert status_name == "To Read"
+
+
+def test_parse_entry_view_callback_with_back_context() -> None:
+    parsed = _parse_entry_view_callback(
+        f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{SEARCH_PAGE_PREFIX}2"
+    )
+    assert parsed is not None
+    entry_id, back_callback = parsed
+    assert str(entry_id) == "11111111-1111-1111-1111-111111111111"
+    assert back_callback == f"{SEARCH_PAGE_PREFIX}2"
+
+
+def test_resolve_entry_back_action_for_search_page() -> None:
+    callback, text = _resolve_entry_back_action(f"{SEARCH_PAGE_PREFIX}2")
+    assert callback == f"{SEARCH_PAGE_PREFIX}2"
+    assert text == "Назад к поиску"
+
+
+def test_parse_list_page_callback() -> None:
+    parsed = _parse_list_page_callback(f"{LIST_PAGE_PREFIX}new:2")
+    assert parsed == ("new", 2)
+
+
+def test_parse_page_callback() -> None:
+    page = _parse_page_callback(f"{SEARCH_PAGE_PREFIX}3", SEARCH_PAGE_PREFIX)
+    assert page == 3
 
 
 def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
@@ -278,3 +394,15 @@ def test_render_collection_result_screen_contains_summary() -> None:
     assert "Коллекция: Verified items" in text
     assert "status: Verified" in text
     assert "Выберите запись" in text
+
+
+def test_render_backups_list_screen_contains_rows() -> None:
+    class BackupRow:
+        def __init__(self, id: str, filename: str, restore_tested_at: str | None) -> None:
+            self.id = id
+            self.filename = filename
+            self.restore_tested_at = restore_tested_at
+
+    text = _render_backups_list_screen([BackupRow("id-1", "file.dump", None)])
+    assert "Backups:" in text
+    assert "file.dump" in text

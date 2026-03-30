@@ -9,6 +9,7 @@ class AddEntryStates(StatesGroup):
 
 class GuidedSearchStates(StatesGroup):
     waiting_query = State()
+    showing_results = State()
 
 
 class TopicCreateStates(StatesGroup):
@@ -17,3 +18,7 @@ class TopicCreateStates(StatesGroup):
 
 class TopicRenameStates(StatesGroup):
     waiting_name = State()
+
+
+class GuidedImportStates(StatesGroup):
+    waiting_document = State()

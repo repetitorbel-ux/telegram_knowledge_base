@@ -11,10 +11,15 @@ from kb_bot.bot.ui.callbacks import (
     LIST_VERIFIED,
     MENU_ADD,
     MENU_BACKUPS,
+    MENU_BACKUP_CREATE,
+    MENU_BACKUP_LIST,
     MENU_CANCEL_FLOW,
     MENU_COLLECTIONS,
+    MENU_EXPORT_CSV,
+    MENU_EXPORT_JSON,
     MENU_HELP,
     MENU_IMPORT_EXPORT,
+    MENU_IMPORT_START,
     MENU_LIST,
     MENU_MAIN,
     MENU_SEARCH,
@@ -108,22 +113,49 @@ def _render_topic_button_label(topic: TopicDTO) -> str:
 
 
 def build_entry_results_keyboard(
-    items: list[EntryDetail],
+    items: list[object],
     *,
     include_back_to_list: bool = False,
     back_callback: str | None = None,
     back_text: str | None = None,
+    page: int | None = None,
+    has_prev_page: bool = False,
+    has_next_page: bool = False,
+    page_callback_prefix: str | None = None,
+    entry_back_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows = []
     for item in items:
+        entry_id = _extract_entry_id(item)
+        if entry_id is None:
+            continue
         rows.append(
             [
                 InlineKeyboardButton(
                     text=_render_entry_button_label(item),
-                    callback_data=f"{ENTRY_VIEW_PREFIX}{item.entry_id}",
+                    callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
                 )
             ]
         )
+
+    if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
+        pagination_row: list[InlineKeyboardButton] = []
+        if has_prev_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="◀ Назад",
+                    callback_data=f"{page_callback_prefix}{page - 1}",
+                )
+            )
+        if has_next_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="Далее ▶",
+                    callback_data=f"{page_callback_prefix}{page + 1}",
+                )
+            )
+        if pagination_row:
+            rows.append(pagination_row)
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
@@ -161,9 +193,26 @@ def build_entry_detail_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _render_entry_button_label(item: EntryDetail) -> str:
+def _render_entry_button_label(item: object) -> str:
     label = f"{item.title} [{item.status_name}]"
     return label[:64]
+
+
+def _extract_entry_id(item: object):
+    entry_id = getattr(item, "entry_id", None)
+    if entry_id is not None:
+        return entry_id
+    return getattr(item, "id", None)
+
+
+def _build_entry_view_callback(entry_id, entry_back_callback: str | None) -> str:
+    base = f"{ENTRY_VIEW_PREFIX}{entry_id}"
+    if not entry_back_callback:
+        return base
+    candidate = f"{base}:{entry_back_callback}"
+    if len(candidate) <= 64:
+        return candidate
+    return base
 
 
 def build_topics_keyboard(topics: list[TopicDTO]) -> InlineKeyboardMarkup:
@@ -209,3 +258,26 @@ def build_collections_keyboard(collections: list[SavedViewDTO]) -> InlineKeyboar
 
 def _render_collection_button_label(collection: SavedViewDTO) -> str:
     return collection.name[:64]
+
+
+def build_import_export_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Импорт CSV/JSON", callback_data=MENU_IMPORT_START)],
+            [
+                InlineKeyboardButton(text="Экспорт CSV", callback_data=MENU_EXPORT_CSV),
+                InlineKeyboardButton(text="Экспорт JSON", callback_data=MENU_EXPORT_JSON),
+            ],
+            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+        ]
+    )
+
+
+def build_backups_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Создать backup", callback_data=MENU_BACKUP_CREATE)],
+            [InlineKeyboardButton(text="Показать backups", callback_data=MENU_BACKUP_LIST)],
+            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+        ]
+    )

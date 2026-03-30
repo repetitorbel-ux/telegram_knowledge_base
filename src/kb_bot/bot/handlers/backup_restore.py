@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from kb_bot.bot.ui.keyboards import build_backups_keyboard
 from kb_bot.core.backup_parsing import parse_restore_args, parse_single_uuid_arg
 from kb_bot.core.config import get_settings
 from kb_bot.db.repositories.backups import BackupsRepository
@@ -28,7 +29,8 @@ def create_backup_restore_router(session_factory: async_sessionmaker) -> Router:
                 return
 
         await message.answer(
-            f"Backup created:\nID: `{result.backup_id}`\nFile: {result.filename}\nSHA256: {result.checksum}"
+            f"Backup created:\nID: `{result.backup_id}`\nFile: {result.filename}\nSHA256: {result.checksum}",
+            reply_markup=build_backups_keyboard(),
         )
 
     @router.message(Command("backups"))
@@ -43,7 +45,7 @@ def create_backup_restore_router(session_factory: async_sessionmaker) -> Router:
         lines = []
         for row in rows:
             lines.append(f"- `{row.id}` | {row.filename} | tested={row.restore_tested_at or '-'}")
-        await message.answer("Backups:\n" + "\n".join(lines))
+        await message.answer("Backups:\n" + "\n".join(lines), reply_markup=build_backups_keyboard())
 
     @router.message(Command("restore_token"))
     async def restore_token_handler(message: Message) -> None:
@@ -79,4 +81,3 @@ def create_backup_restore_router(session_factory: async_sessionmaker) -> Router:
         await message.answer("Restore completed.")
 
     return router
-

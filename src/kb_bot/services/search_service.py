@@ -6,12 +6,17 @@ class SearchService:
     def __init__(self, entries_repo: EntriesRepository) -> None:
         self.entries_repo = entries_repo
 
-    async def search(self, query: str, limit: int = 10) -> list[EntryDTO]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[EntryDTO]:
         q = query.strip()
         if not q:
             return []
 
-        rows = await self.entries_repo.search(q, limit=limit)
+        rows = await self.entries_repo.search(q, limit=limit, offset=offset)
         return [
             EntryDTO(
                 id=entry.id,
@@ -25,4 +30,3 @@ class SearchService:
             )
             for entry, status_name in rows
         ]
-

@@ -2,9 +2,12 @@ import io
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from kb_bot.bot.fsm.states import GuidedImportStates
+from kb_bot.bot.ui.keyboards import build_flow_navigation_keyboard, build_import_export_keyboard
 from kb_bot.core.export_parsing import parse_export_format
 from kb_bot.core.import_parsing import detect_import_format
 from kb_bot.core.list_parsing import ListFilters, parse_list_command
@@ -23,11 +26,13 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
     async def import_help_handler(message: Message) -> None:
         await message.answer(
             "Send CSV or JSON document with caption /import.\n"
-            "Supported columns: title, original_url, notes, topic_id"
+            "Supported columns: title, original_url, notes, topic_id",
+            reply_markup=build_import_export_keyboard(),
         )
 
     @router.message(F.document, F.caption.startswith("/import"))
-    async def import_document_handler(message: Message) -> None:
+    @router.message(GuidedImportStates.waiting_document, F.document)
+    async def import_document_handler(message: Message, state: FSMContext) -> None:
         if message.document is None:
             await message.answer("No document found.")
             return
@@ -57,13 +62,15 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
             await message.answer(f"Import failed: {exc}")
             raise
 
+        await state.clear()
         await message.answer(
             f"Import completed:\n"
             f"Job: `{result.job_id}`\n"
             f"Total: {result.total_records}\n"
             f"Imported: {result.imported_records}\n"
             f"Duplicates: {result.duplicate_records}\n"
-            f"Errors: {result.error_records}"
+            f"Errors: {result.error_records}",
+            reply_markup=build_import_export_keyboard(),
         )
 
     @router.message(Command("export"), F.text)
@@ -91,6 +98,13 @@ def create_import_router(session_factory: async_sessionmaker) -> Router:
         await message.answer_document(
             file,
             caption=f"Export done. Job `{result.job_id}` records={result.total_records}",
+        )
+
+    @router.message(GuidedImportStates.waiting_document)
+    async def import_waiting_hint(message: Message) -> None:
+        await message.answer(
+            "Сейчас ожидается CSV или JSON файл для импорта.",
+            reply_markup=build_flow_navigation_keyboard(),
         )
 
     return router

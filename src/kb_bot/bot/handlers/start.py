@@ -21,6 +21,13 @@ def render_welcome_text() -> str:
     )
 
 
+def render_restart_text() -> str:
+    return (
+        "Бот перезапущен и снова готов к работе.\n\n"
+        "Главное меню уже прикреплено ниже, так что вводить /start после каждого рестарта не нужно."
+    )
+
+
 @router.message(Command("start"))
 async def start_handler(message: Message) -> None:
     await message.answer(render_welcome_text(), reply_markup=build_main_menu_keyboard())

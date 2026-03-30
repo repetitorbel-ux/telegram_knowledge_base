@@ -28,6 +28,8 @@ _sanitize_sslkeylogfile()
 from aiogram import Bot, Dispatcher
 
 from kb_bot.bot.router import build_router
+from kb_bot.bot.handlers.start import render_restart_text
+from kb_bot.bot.ui.keyboards import build_main_menu_keyboard
 from kb_bot.core.auth import AllowlistMiddleware
 from kb_bot.core.config import get_settings
 from kb_bot.core.logging import setup_logging
@@ -108,6 +110,15 @@ async def run_bot() -> None:
 
     logger.info("bot_starting")
     try:
+        try:
+            await bot.send_message(
+                chat_id=settings.telegram_allowed_user_id,
+                text=render_restart_text(),
+                reply_markup=build_main_menu_keyboard(),
+                disable_notification=True,
+            )
+        except Exception:
+            logger.exception("bot_restart_notification_failed")
         await dispatcher.start_polling(bot)
     finally:
         await engine.dispose()
