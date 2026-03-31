@@ -2,6 +2,9 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
+    BACKUP_RESTORE_ACK_PREFIX,
+    BACKUP_RESTORE_EXEC_PREFIX,
+    BACKUP_RESTORE_PICK_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -13,6 +16,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_BACKUPS,
     MENU_BACKUP_CREATE,
     MENU_BACKUP_LIST,
+    MENU_BACKUP_RESTORE,
     MENU_CANCEL_FLOW,
     MENU_COLLECTIONS,
     MENU_EXPORT_CSV,
@@ -328,6 +332,40 @@ def build_backups_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="Создать backup", callback_data=MENU_BACKUP_CREATE)],
             [InlineKeyboardButton(text="Показать backups", callback_data=MENU_BACKUP_LIST)],
+            [InlineKeyboardButton(text="Восстановить backup (2 шага)", callback_data=MENU_BACKUP_RESTORE)],
+            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+        ]
+    )
+
+
+def build_backup_restore_picker_keyboard(rows: list[object]) -> InlineKeyboardMarkup:
+    buttons = []
+    for row in rows[:10]:
+        backup_id = getattr(row, "id", None)
+        if backup_id is None:
+            continue
+        filename = str(getattr(row, "filename", "backup"))
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Restore: {filename[:45]}",
+                    callback_data=f"{BACKUP_RESTORE_PICK_PREFIX}{backup_id}",
+                )
+            ]
+        )
+
+    buttons.append([InlineKeyboardButton(text="К бэкапам", callback_data=MENU_BACKUPS)])
+    buttons.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def build_backup_restore_warning_keyboard(backup_id: str, *, final: bool = False) -> InlineKeyboardMarkup:
+    confirm_prefix = BACKUP_RESTORE_EXEC_PREFIX if final else BACKUP_RESTORE_ACK_PREFIX
+    confirm_text = "Подтвердить restore" if final else "Я понимаю риск, продолжить"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=confirm_text, callback_data=f"{confirm_prefix}{backup_id}")],
+            [InlineKeyboardButton(text="Отмена", callback_data=MENU_BACKUPS)],
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]
     )
