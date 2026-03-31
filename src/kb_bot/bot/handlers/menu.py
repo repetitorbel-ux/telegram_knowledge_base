@@ -1,3 +1,6 @@
+import asyncio
+import subprocess
+
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
@@ -97,6 +100,8 @@ LIST_KIND_NEW = "new"
 LIST_KIND_TO_READ = "to_read"
 LIST_KIND_VERIFIED = "verified"
 _ACTIVE_RESTORE_CHAT_IDS: set[int] = set()
+_RESTORE_HEARTBEAT_INTERVAL_SEC = 60
+_RESTORE_UI_DIAGNOSTIC_MAX_LEN = 280
 
 
 def create_menu_router(session_factory: async_sessionmaker) -> Router:
@@ -631,7 +636,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await callback.answer()
         async with session_factory() as session:
             service = BackupService(BackupsRepository(session), session)
-            rows = await service.list_backups()
+            rows = await service.list_backups(settings.backup_dir)
         if callback.message is not None:
             await callback.message.answer(
                 _render_backups_list_screen(rows),
@@ -643,7 +648,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await callback.answer()
         async with session_factory() as session:
             service = BackupService(BackupsRepository(session), session)
-            rows = await service.list_backups()
+            rows = await service.list_backups(settings.backup_dir)
         if callback.message is None:
             return
         if not rows:
@@ -706,10 +711,21 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             return
 
         _ACTIVE_RESTORE_CHAT_IDS.add(chat_id)
+        heartbeat_stop = asyncio.Event()
+        heartbeat_task: asyncio.Task[None] | None = None
         try:
             await callback.message.answer(
-                f"Restore запущен. Это может занять время (таймаут: {settings.restore_timeout_sec} сек).",
+                f"Restore запущен. Это может занять время (таймаут: {settings.restore_timeout_sec} сек).\n"
+                f"Чекпоинт прогресса отправляется каждые {_RESTORE_HEARTBEAT_INTERVAL_SEC} сек.",
                 reply_markup=build_backups_keyboard(),
+            )
+            heartbeat_task = asyncio.create_task(
+                _send_restore_heartbeat(
+                    callback.message,
+                    stop_event=heartbeat_stop,
+                    timeout_sec=settings.restore_timeout_sec,
+                    interval_sec=_RESTORE_HEARTBEAT_INTERVAL_SEC,
+                )
             )
             async with session_factory() as session:
                 service = BackupService(BackupsRepository(session), session)
@@ -723,11 +739,14 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 )
         except Exception as exc:
             await callback.message.answer(
-                f"Restore failed: {exc}",
+                _format_restore_failure_message(exc),
                 reply_markup=build_backups_keyboard(),
             )
             return
         finally:
+            heartbeat_stop.set()
+            if heartbeat_task is not None:
+                await heartbeat_task
             _ACTIVE_RESTORE_CHAT_IDS.discard(chat_id)
 
         await callback.message.answer(
@@ -758,6 +777,104 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         )
 
     return router
+
+
+async def _send_restore_heartbeat(
+    message: Message,
+    *,
+    stop_event: asyncio.Event,
+    timeout_sec: int,
+    interval_sec: int,
+) -> None:
+    elapsed_sec = 0
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval_sec)
+            return
+        except TimeoutError:
+            elapsed_sec += interval_sec
+
+        try:
+            await message.answer(_format_restore_progress_checkpoint(elapsed_sec, timeout_sec))
+        except TelegramBadRequest:
+            return
+
+
+def _format_restore_progress_checkpoint(elapsed_sec: int, timeout_sec: int) -> str:
+    timeout_safe = max(timeout_sec, 1)
+    elapsed_safe = max(elapsed_sec, 0)
+    percent = min(99, int((elapsed_safe / timeout_safe) * 100))
+    return (
+        "Restore в процессе.\n"
+        f"Прошло: {_format_duration_seconds(elapsed_safe)}.\n"
+        f"Лимит: {_format_duration_seconds(timeout_safe)} ({percent}% от таймаута).\n"
+        "Ожидайте финальное сообщение."
+    )
+
+
+def _format_restore_failure_message(exc: Exception) -> str:
+    reason = _format_restore_failure_reason(exc)
+    diagnostics = _extract_restore_diagnostics(exc)
+    if diagnostics:
+        return f"Restore failed.\nПричина: {reason}\nДиагностика: {diagnostics}"
+    return f"Restore failed.\nПричина: {reason}"
+
+
+def _format_restore_failure_reason(exc: Exception) -> str:
+    if isinstance(exc, subprocess.TimeoutExpired):
+        timeout = int(exc.timeout) if isinstance(exc.timeout, (int, float)) else exc.timeout
+        return f"timeout after {timeout} sec"
+    if isinstance(exc, subprocess.CalledProcessError):
+        return f"pg_restore exited with code {exc.returncode}"
+    text = _compact_restore_text(str(exc), max_len=160)
+    return text or exc.__class__.__name__
+
+
+def _extract_restore_diagnostics(exc: Exception) -> str | None:
+    parts: list[str] = []
+    stderr_text = _compact_restore_text(getattr(exc, "stderr", None), max_len=180)
+    stdout_text = _compact_restore_text(getattr(exc, "stdout", None), max_len=120)
+
+    if stderr_text:
+        parts.append(f"stderr={stderr_text}")
+    elif stdout_text:
+        parts.append(f"stdout={stdout_text}")
+
+    cmd = getattr(exc, "cmd", None)
+    if cmd:
+        cmd_text = _compact_restore_text(_stringify_command(cmd), max_len=120)
+        if cmd_text:
+            parts.append(f"cmd={cmd_text}")
+
+    if not parts:
+        return None
+    return _compact_restore_text(" | ".join(parts), max_len=_RESTORE_UI_DIAGNOSTIC_MAX_LEN)
+
+
+def _compact_restore_text(value: str | bytes | None, *, max_len: int) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+    normalized = " ".join(value.strip().split())
+    if not normalized:
+        return None
+    if len(normalized) <= max_len:
+        return normalized
+    return normalized[: max_len - 3] + "..."
+
+
+def _stringify_command(cmd: object) -> str:
+    if isinstance(cmd, (list, tuple)):
+        return " ".join(str(part) for part in cmd)
+    return str(cmd)
+
+
+def _format_duration_seconds(value: int) -> str:
+    minutes, seconds = divmod(max(value, 0), 60)
+    if minutes:
+        return f"{minutes} мин {seconds} сек"
+    return f"{seconds} сек"
 
 
 async def _load_entries(

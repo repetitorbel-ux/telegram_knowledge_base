@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 os.environ.pop("SSLKEYLOGFILE", None)
 
@@ -11,6 +12,8 @@ from kb_bot.bot.handlers.menu import (
     _parse_status_update_callback,
     _resolve_entry_back_action,
     _resolve_status_back_action,
+    _format_restore_failure_message,
+    _format_restore_progress_checkpoint,
     _render_backups_list_screen,
     _render_collection_result_screen,
     _render_entry_detail_screen,
@@ -590,3 +593,36 @@ def test_render_backups_list_screen_contains_rows() -> None:
     text = _render_backups_list_screen([BackupRow("id-1", "file.dump", None)])
     assert "Backups:" in text
     assert "file.dump" in text
+
+
+def test_format_restore_progress_checkpoint_contains_elapsed_and_timeout_percent() -> None:
+    text = _format_restore_progress_checkpoint(elapsed_sec=120, timeout_sec=600)
+    assert "Restore в процессе." in text
+    assert "2 мин 0 сек" in text
+    assert "20% от таймаута" in text
+
+
+def test_format_restore_failure_message_for_timeout_with_compact_stderr() -> None:
+    exc = subprocess.TimeoutExpired(
+        cmd=["pg_restore", "--clean"],
+        timeout=300,
+        stderr="fatal: connection reset by peer\n" * 20,
+    )
+    text = _format_restore_failure_message(exc)
+    assert "Restore failed." in text
+    assert "timeout after 300 sec" in text
+    assert "stderr=" in text
+    assert len(text) < 500
+
+
+def test_format_restore_failure_message_for_nonzero_exit() -> None:
+    exc = subprocess.CalledProcessError(
+        returncode=2,
+        cmd=["pg_restore", "--clean", "-d", "postgresql://user@localhost/db"],
+        output="processing item",
+        stderr="ERROR: relation does not exist",
+    )
+    text = _format_restore_failure_message(exc)
+    assert "pg_restore exited with code 2" in text
+    assert "stderr=ERROR: relation does not exist" in text
+    assert "cmd=pg_restore --clean -d postgresql://user@localhost/db" in text
