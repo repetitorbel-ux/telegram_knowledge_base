@@ -5,31 +5,30 @@
 - Repo: `d:\Development_codex\tg_db`
 - Branch: `main`
 - `HEAD` == `origin/main`
-- Latest merged PR:
-  - `#21` — Guided UI navigation and pagination improvements
+- Latest merged PRs:
+  - `#27` — pagination for `Темы` and `Коллекции` screens
+  - `#28` — safe UI restore flow (backup picker + two-step confirm)
 
 ## Delivered in Current Cycle
 
-1. Guided UI navigation stabilized:
-   - menu callbacks work from any FSM state (including `В главное меню` and `Назад к фильтрам`).
-2. Pagination added for UI lists and search:
-   - `◀ Назад` / `Далее ▶`.
-3. Context back-navigation from entry card:
-   - return to original list/search page or collections context.
-   - preserved after status update action.
-4. Search callback path hardened:
-   - results keyboard now reliably supports current DTO/detail shapes.
-5. Documentation updated:
-   - `docs/UI_GUIDED_INTERACTION/IMPLEMENTATION_PLAN_RU.md`
-   - `docs/UI_GUIDED_INTERACTION/UI_TRANSITION_PLAN_RU.md`
+1. Pagination coverage extended:
+   - list/search were already paged;
+   - topics/collections are now paged with `◀ Назад` / `Далее ▶` in menu UI.
+2. Safe restore flow delivered in UI:
+   - backup picker screen;
+   - explicit warning screen;
+   - final confirmation screen before restore execution.
+3. Command restore mode remains valid:
+   - `/restore_token` + `/restore` flow kept as default safe fallback.
+4. Guided UI smoke evidence captured:
+   - base menu flow manual smoke recorded as `PASS` in runbook.
 
 ## Validation Snapshot
 
 - Automated:
-  - `python -m pytest -q` -> `76 passed`
+  - `python -m pytest -q` -> `91 passed`
 - Manual:
-  - list navigation and status update flow verified;
-  - `Назад к фильтрам` after `To Read` confirmed working.
+  - `/start -> list/search/collections -> entry -> status -> back` verified (`PASS`).
 
 ## Local-Only Docs Note
 
@@ -57,9 +56,10 @@ Repository has already been restored and synchronized.
 
 ## Recommended Next Steps
 
-1. Run short manual smoke cycle using `docs/UI_GUIDED_INTERACTION/MANUAL_SMOKE_RUNBOOK_RU.md` and record result in its `Журнал прогонов`.
-2. Decide whether to extend pagination to currently non-paged UI screens with potentially large datasets.
-3. Evaluate safe UI restore flow design (two-step confirmation + explicit warning), keep command restore as default until approved.
+1. Run a focused manual smoke for new UI restore flow:
+   - `Бэкапы -> Восстановить backup (2 шага) -> выбрать backup -> подтвердить шаг 1 -> подтвердить шаг 2`.
+2. Capture restore smoke outcome in runbook journal with version/notes.
+3. Decide whether to add a dry-run guard message before final restore execution (UX-only confirmation text refinement).
 
 ## Runbook Link
 
