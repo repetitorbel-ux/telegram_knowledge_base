@@ -14,6 +14,9 @@ from kb_bot.bot.fsm.states import (
 )
 from kb_bot.bot.handlers.start import render_welcome_text
 from kb_bot.bot.ui.callbacks import (
+    BACKUP_RESTORE_ACK_PREFIX,
+    BACKUP_RESTORE_EXEC_PREFIX,
+    BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
@@ -27,6 +30,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_BACKUPS,
     MENU_BACKUP_CREATE,
     MENU_BACKUP_LIST,
+    MENU_BACKUP_RESTORE,
     MENU_CANCEL_FLOW,
     MENU_COLLECTIONS,
     MENU_EXPORT_CSV,
@@ -47,6 +51,8 @@ from kb_bot.bot.ui.callbacks import (
 )
 from kb_bot.bot.ui.keyboards import (
     build_backups_keyboard,
+    build_backup_restore_picker_keyboard,
+    build_backup_restore_warning_keyboard,
     build_import_export_keyboard,
     build_collections_keyboard,
     build_flow_navigation_keyboard,
@@ -630,7 +636,87 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 _render_backups_list_screen(rows),
                 reply_markup=build_backups_keyboard(),
             )
-            
+
+    @router.callback_query(F.data == MENU_BACKUP_RESTORE)
+    async def menu_backup_restore(callback: CallbackQuery) -> None:
+        await callback.answer()
+        async with session_factory() as session:
+            service = BackupService(BackupsRepository(session), session)
+            rows = await service.list_backups()
+        if callback.message is None:
+            return
+        if not rows:
+            await callback.message.answer(
+                "Restore недоступен: список backup пуст.",
+                reply_markup=build_backups_keyboard(),
+            )
+            return
+        await callback.message.answer(
+            "Выберите backup для restore.\n\n"
+            "Внимание: restore перезаписывает данные целевой БД.\n"
+            "Командный безопасный путь `/restore_token` + `/restore` остается доступным.",
+            reply_markup=build_backup_restore_picker_keyboard(rows),
+        )
+
+    @router.callback_query(F.data.startswith(BACKUP_RESTORE_PICK_PREFIX))
+    async def menu_backup_restore_pick(callback: CallbackQuery) -> None:
+        backup_id = _parse_entry_id_from_callback(callback.data, BACKUP_RESTORE_PICK_PREFIX)
+        if backup_id is None:
+            await callback.answer("Не удалось определить backup.", show_alert=True)
+            return
+        await _show_screen(
+            callback,
+            "Шаг 1 из 2: подтверждение риска.\n\n"
+            "Restore выполнит очистку и восстановление объектов в целевой БД.\n"
+            "Продолжайте только если понимаете последствия.",
+            build_backup_restore_warning_keyboard(str(backup_id), final=False),
+        )
+
+    @router.callback_query(F.data.startswith(BACKUP_RESTORE_ACK_PREFIX))
+    async def menu_backup_restore_ack(callback: CallbackQuery) -> None:
+        backup_id = _parse_entry_id_from_callback(callback.data, BACKUP_RESTORE_ACK_PREFIX)
+        if backup_id is None:
+            await callback.answer("Не удалось определить backup.", show_alert=True)
+            return
+        await _show_screen(
+            callback,
+            "Шаг 2 из 2: финальное подтверждение.\n\n"
+            "После нажатия restore будет запущен немедленно.",
+            build_backup_restore_warning_keyboard(str(backup_id), final=True),
+        )
+
+    @router.callback_query(F.data.startswith(BACKUP_RESTORE_EXEC_PREFIX))
+    async def menu_backup_restore_exec(callback: CallbackQuery) -> None:
+        backup_id = _parse_entry_id_from_callback(callback.data, BACKUP_RESTORE_EXEC_PREFIX)
+        if backup_id is None:
+            await callback.answer("Не удалось определить backup.", show_alert=True)
+            return
+
+        await callback.answer("Запускаю restore...")
+        async with session_factory() as session:
+            service = BackupService(BackupsRepository(session), session)
+            try:
+                token = await service.issue_restore_token(str(backup_id))
+                await service.restore_backup(
+                    backup_id=str(backup_id),
+                    token=token,
+                    database_url=settings.database_url,
+                    pg_restore_bin=settings.pg_restore_bin,
+                )
+            except Exception as exc:
+                if callback.message is not None:
+                    await callback.message.answer(
+                        f"Restore failed: {exc}",
+                        reply_markup=build_backups_keyboard(),
+                    )
+                return
+
+        if callback.message is not None:
+            await callback.message.answer(
+                "Restore completed.\n\n"
+                "Рекомендуется проверить `/stats` и быстрый список записей.",
+                reply_markup=build_backups_keyboard(),
+            )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_HELP)
     async def menu_help(callback: CallbackQuery, state: FSMContext) -> None:

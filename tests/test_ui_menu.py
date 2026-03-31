@@ -23,6 +23,9 @@ from kb_bot.bot.handlers.menu import (
 from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
+    BACKUP_RESTORE_ACK_PREFIX,
+    BACKUP_RESTORE_EXEC_PREFIX,
+    BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
@@ -33,6 +36,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_BACKUPS,
     MENU_BACKUP_CREATE,
     MENU_BACKUP_LIST,
+    MENU_BACKUP_RESTORE,
     MENU_CANCEL_FLOW,
     MENU_COLLECTIONS,
     MENU_HELP,
@@ -51,6 +55,8 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_VIEW_PREFIX,
 )
 from kb_bot.bot.ui.keyboards import (
+    build_backup_restore_picker_keyboard,
+    build_backup_restore_warning_keyboard,
     build_add_topic_picker_keyboard,
     build_backups_keyboard,
     build_collections_keyboard,
@@ -121,6 +127,34 @@ def test_backups_keyboard_contains_actions() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert MENU_BACKUP_CREATE in callbacks
     assert MENU_BACKUP_LIST in callbacks
+    assert MENU_BACKUP_RESTORE in callbacks
+
+
+def test_backup_restore_picker_keyboard_contains_pick_callbacks() -> None:
+    class BackupRow:
+        def __init__(self, id: str, filename: str, restore_tested_at: str | None) -> None:
+            self.id = id
+            self.filename = filename
+            self.restore_tested_at = restore_tested_at
+
+    keyboard = build_backup_restore_picker_keyboard(
+        [BackupRow("11111111-1111-1111-1111-111111111111", "tg_kb_test.dump", None)]
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{BACKUP_RESTORE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert MENU_BACKUPS in callbacks
+
+
+def test_backup_restore_warning_keyboard_contains_ack_and_exec_callbacks() -> None:
+    backup_id = "11111111-1111-1111-1111-111111111111"
+    ack_keyboard = build_backup_restore_warning_keyboard(backup_id, final=False)
+    exec_keyboard = build_backup_restore_warning_keyboard(backup_id, final=True)
+
+    ack_callbacks = [button.callback_data for row in ack_keyboard.inline_keyboard for button in row]
+    exec_callbacks = [button.callback_data for row in exec_keyboard.inline_keyboard for button in row]
+
+    assert f"{BACKUP_RESTORE_ACK_PREFIX}{backup_id}" in ack_callbacks
+    assert f"{BACKUP_RESTORE_EXEC_PREFIX}{backup_id}" in exec_callbacks
 
 
 def test_render_topics_screen_uses_hierarchy() -> None:
