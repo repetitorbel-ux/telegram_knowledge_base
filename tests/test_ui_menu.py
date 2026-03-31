@@ -55,6 +55,8 @@ from kb_bot.bot.ui.callbacks import (
     SEARCH_PAGE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
+    TOPIC_DELETE_CONFIRM_PREFIX,
+    TOPIC_DELETE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -70,6 +72,7 @@ from kb_bot.bot.ui.keyboards import (
     build_import_export_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
     build_topics_keyboard,
 )
@@ -504,7 +507,15 @@ def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> Non
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_TOPICS in callbacks
+
+
+def test_topic_delete_confirm_keyboard_contains_confirm_and_cancel() -> None:
+    keyboard = build_topic_delete_confirm_keyboard("11111111-1111-1111-1111-111111111111")
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_DELETE_CONFIRM_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
 def test_collections_keyboard_contains_collection_callbacks() -> None:

@@ -49,6 +49,8 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
+    TOPIC_DELETE_CONFIRM_PREFIX,
+    TOPIC_DELETE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -65,6 +67,7 @@ from kb_bot.bot.ui.keyboards import (
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
     build_topics_keyboard,
 )
@@ -494,6 +497,51 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             build_flow_navigation_keyboard(),
         )
 
+    @router.callback_query(F.data.startswith(TOPIC_DELETE_PREFIX))
+    async def topic_delete_start(callback: CallbackQuery) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_DELETE_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось выбрать тему.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            service = TopicService(TopicsRepository(session), session)
+            try:
+                topic, descendants_count = await service.get_topic_with_descendants_count(topic_id)
+            except TopicNotFoundError:
+                await callback.answer("Тема не найдена.", show_alert=True)
+                return
+
+        await _show_screen(
+            callback,
+            "Подтвердите удаление темы.\n"
+            f"Будет скрыта ветка: `{topic.full_path}`\n"
+            f"Подтем будет затронуто: {descendants_count}\n\n"
+            "Действие обратимо только через прямое изменение в БД.",
+            build_topic_delete_confirm_keyboard(str(topic_id)),
+        )
+
+    @router.callback_query(F.data.startswith(TOPIC_DELETE_CONFIRM_PREFIX))
+    async def topic_delete_confirm(callback: CallbackQuery) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_DELETE_CONFIRM_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось прочитать подтверждение.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            service = TopicService(TopicsRepository(session), session)
+            try:
+                deleted_count = await service.archive_topic_branch(topic_id)
+            except TopicNotFoundError:
+                await callback.answer("Тема уже недоступна.", show_alert=True)
+                return
+
+        await _show_screen(
+            callback,
+            f"Тема удалена (архивирована).\nСкрыто тем: {deleted_count}.",
+            await _build_topics_keyboard_from_db(session_factory),
+        )
+
     @router.callback_query(StateFilter("*"), F.data == MENU_STATS)
     async def menu_stats(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
@@ -804,6 +852,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/topic_add <name>\n"
             "/topic_add \"<parent>\" -> <name>\n"
             "/topic_rename <topic_uuid> <new_name>\n"
+            "/topic_delete <topic_uuid|full_path|name>\n"
             "/stats\n"
             "/backup\n"
             "/backups\n\n"

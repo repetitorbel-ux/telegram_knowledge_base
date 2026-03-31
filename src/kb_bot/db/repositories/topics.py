@@ -50,6 +50,9 @@ class TopicsRepository:
         return list(result.scalars().all())
 
     async def list_descendants(self, prefix: str) -> list[Topic]:
-        stmt = select(Topic).where(Topic.full_path.like(f"{prefix}.%"))
+        stmt = select(Topic).where(
+            Topic.full_path.like(f"{prefix}.%"),
+            Topic.is_active.is_(True),
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

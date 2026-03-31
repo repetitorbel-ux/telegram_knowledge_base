@@ -31,6 +31,8 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     TOPIC_CREATE_CHILD_PREFIX,
     MENU_TOPICS,
+    TOPIC_DELETE_CONFIRM_PREFIX,
+    TOPIC_DELETE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -267,6 +269,23 @@ def build_topic_detail_keyboard(topic_id: str) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
+            [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
+            [InlineKeyboardButton(text="К темам", callback_data=MENU_TOPICS)],
+            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+        ]
+    )
+
+
+def build_topic_delete_confirm_keyboard(topic_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Подтвердить удаление",
+                    callback_data=f"{TOPIC_DELETE_CONFIRM_PREFIX}{topic_id}",
+                )
+            ],
+            [InlineKeyboardButton(text="Отмена", callback_data=f"{TOPIC_VIEW_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="К темам", callback_data=MENU_TOPICS)],
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]

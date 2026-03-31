@@ -86,3 +86,28 @@ class TopicService:
         await self.session.commit()
         await self.session.refresh(topic)
         return TopicDTO(id=topic.id, name=topic.name, full_path=topic.full_path, level=topic.level)
+
+    async def get_topic_with_descendants_count(self, topic_id: uuid.UUID) -> tuple[TopicDTO, int]:
+        topic = await self.topics_repo.get(topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        descendants = await self.topics_repo.list_descendants(topic.full_path)
+        dto = TopicDTO(id=topic.id, name=topic.name, full_path=topic.full_path, level=topic.level)
+        return dto, len(descendants)
+
+    async def archive_topic_branch(self, topic_id: uuid.UUID) -> int:
+        topic = await self.topics_repo.get(topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        descendants = await self.topics_repo.list_descendants(topic.full_path)
+        topic.is_active = False
+        topic.is_archived = True
+
+        for child in descendants:
+            child.is_active = False
+            child.is_archived = True
+
+        await self.session.commit()
+        return 1 + len(descendants)

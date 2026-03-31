@@ -74,12 +74,14 @@ Release smoke options:
 - Menu UI:
   - open `Темы` and pick a topic
   - use `Добавить подтему` from topic detail card
+  - use `Удалить тему` and confirm to archive/hide a topic branch
 - Command mode (all supported):
   - `/topic_add <name>`
   - `/topic_add <parent_uuid|root> <name>`
   - `/topic_add parent=<parent_full_path_or_name> <name>`
   - `/topic_add "Neural Networks / AI" -> Codex`
   - `/topic_rename <topic_uuid> <new_name>`
+  - `/topic_delete <topic_uuid|topic_full_path|topic_name>`
 
 ## Git Process
 
