@@ -49,8 +49,34 @@ class BackupService:
         await self.session.commit()
         return BackupResult(backup_id=str(record.id), filename=filename, checksum=checksum)
 
-    async def list_backups(self) -> list[BackupRecord]:
+    async def list_backups(self, backup_dir: str | None = None) -> list[BackupRecord]:
+        if backup_dir:
+            await self.sync_backup_catalog(backup_dir)
         return await self.backups_repo.list_all()
+
+    async def sync_backup_catalog(self, backup_dir: str) -> int:
+        target_dir = Path(backup_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        rows = await self.backups_repo.list_all()
+        known_by_filename = {row.filename: row for row in rows}
+
+        created = 0
+        for backup_path in sorted(target_dir.glob("*.dump")):
+            if backup_path.name in known_by_filename:
+                continue
+            checksum = _sha256_file(backup_path)
+            record = BackupRecord(
+                filename=backup_path.name,
+                file_path=str(backup_path.resolve()),
+                sha256_checksum=checksum,
+            )
+            await self.backups_repo.create(record)
+            created += 1
+
+        if created:
+            await self.session.commit()
+        return created
 
     async def issue_restore_token(self, backup_id: str) -> str:
         _cleanup_expired_tokens()
@@ -83,11 +109,15 @@ class BackupService:
         if record is None:
             raise ValueError("backup not found")
         backup_path = Path(record.file_path)
+        expected_checksum = record.sha256_checksum
         if not backup_path.is_file():
             raise ValueError("backup file is missing")
         actual_checksum = _sha256_file(backup_path)
-        if not secrets.compare_digest(actual_checksum, record.sha256_checksum):
+        if not secrets.compare_digest(actual_checksum, expected_checksum):
             raise ValueError("backup checksum mismatch")
+
+        # Release SQLAlchemy transaction locks before pg_restore starts DDL.
+        await self.session.rollback()
 
         sync_url, env = _to_pg_dump_url_and_env(database_url)
         _ensure_restore_target_is_safe(sync_url)
@@ -105,12 +135,16 @@ class BackupService:
                 str(backup_path),
             ],
             check=True,
+            capture_output=True,
+            text=True,
             env=env,
             timeout=restore_timeout_sec,
         )
         _RESTORE_TOKENS.pop(backup_id, None)
-        record.restore_tested_at = datetime.now(UTC)
-        await self.session.commit()
+        refreshed = await self.backups_repo.get(uuid.UUID(backup_id))
+        if refreshed is not None:
+            refreshed.restore_tested_at = datetime.now(UTC)
+            await self.session.commit()
 
 
 def _to_pg_dump_url_and_env(database_url: str) -> tuple[str, dict[str, str]]:

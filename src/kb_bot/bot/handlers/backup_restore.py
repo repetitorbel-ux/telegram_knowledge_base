@@ -37,7 +37,7 @@ def create_backup_restore_router(session_factory: async_sessionmaker) -> Router:
     async def backups_handler(message: Message) -> None:
         async with session_factory() as session:
             service = BackupService(BackupsRepository(session), session)
-            rows = await service.list_backups()
+            rows = await service.list_backups(settings.backup_dir)
         if not rows:
             await message.answer("No backups found.")
             return
