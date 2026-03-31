@@ -20,6 +20,7 @@ Single-user Telegram KB bot MVP skeleton.
   - CSV/JSON import via Telegram document (`/import`)
   - CSV/JSON export via `/export` with filters
   - Backup/restore flow (`/backup`, `/backups`, `/restore_token`, `/restore`)
+  - Guided backup restore UI with 2-step confirmation and runtime progress feedback
   - Personal dashboard metrics via `/stats`
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
@@ -111,6 +112,6 @@ Release smoke options:
 
 ## Current scope limits
 
-- No forwarded-message ingest flow yet
-- No import/export and backup/restore
+- Single-user operation only (allowlist owner flow)
+- Local-first operation (Windows + local PostgreSQL)
 - No webhook mode (long polling only)
