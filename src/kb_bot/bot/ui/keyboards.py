@@ -215,7 +215,14 @@ def _build_entry_view_callback(entry_id, entry_back_callback: str | None) -> str
     return base
 
 
-def build_topics_keyboard(topics: list[TopicDTO]) -> InlineKeyboardMarkup:
+def build_topics_keyboard(
+    topics: list[TopicDTO],
+    *,
+    page: int | None = None,
+    has_prev_page: bool = False,
+    has_next_page: bool = False,
+    page_callback_prefix: str | None = None,
+) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE)]]
     for topic in topics:
         rows.append(
@@ -226,6 +233,24 @@ def build_topics_keyboard(topics: list[TopicDTO]) -> InlineKeyboardMarkup:
                 )
             ]
         )
+    if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
+        pagination_row: list[InlineKeyboardButton] = []
+        if has_prev_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="◀ Назад",
+                    callback_data=f"{page_callback_prefix}{page - 1}",
+                )
+            )
+        if has_next_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="Далее ▶",
+                    callback_data=f"{page_callback_prefix}{page + 1}",
+                )
+            )
+        if pagination_row:
+            rows.append(pagination_row)
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -240,7 +265,14 @@ def build_topic_detail_keyboard(topic_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def build_collections_keyboard(collections: list[SavedViewDTO]) -> InlineKeyboardMarkup:
+def build_collections_keyboard(
+    collections: list[SavedViewDTO],
+    *,
+    page: int | None = None,
+    has_prev_page: bool = False,
+    has_next_page: bool = False,
+    page_callback_prefix: str | None = None,
+) -> InlineKeyboardMarkup:
     rows = []
     for collection in collections:
         rows.append(
@@ -251,6 +283,24 @@ def build_collections_keyboard(collections: list[SavedViewDTO]) -> InlineKeyboar
                 )
             ]
         )
+    if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
+        pagination_row: list[InlineKeyboardButton] = []
+        if has_prev_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="◀ Назад",
+                    callback_data=f"{page_callback_prefix}{page - 1}",
+                )
+            )
+        if has_next_page:
+            pagination_row.append(
+                InlineKeyboardButton(
+                    text="Далее ▶",
+                    callback_data=f"{page_callback_prefix}{page + 1}",
+                )
+            )
+        if pagination_row:
+            rows.append(pagination_row)
     rows.append([InlineKeyboardButton(text="Обновить список", callback_data=MENU_COLLECTIONS)])
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)

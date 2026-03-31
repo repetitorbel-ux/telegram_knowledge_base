@@ -14,6 +14,7 @@ from kb_bot.bot.fsm.states import (
 )
 from kb_bot.bot.handlers.start import render_welcome_text
 from kb_bot.bot.ui.callbacks import (
+    COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -40,6 +41,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -387,11 +389,18 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPICS)
     async def menu_topics(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await _show_screen(
-            callback,
-            await _render_topics_overview_screen(session_factory),
-            await _build_topics_keyboard_from_db(session_factory),
-        )
+        await _show_topics_page(callback, session_factory, page=0)
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPICS_PAGE_PREFIX))
+    async def topics_page(callback: CallbackQuery) -> None:
+        page = _parse_page_callback(callback.data, TOPICS_PAGE_PREFIX)
+        if page is None:
+            await callback.answer("Не удалось открыть страницу тем.", show_alert=True)
+            return
+        if page < 0:
+            await callback.answer("Страница вне диапазона.", show_alert=True)
+            return
+        await _show_topics_page(callback, session_factory, page=page)
 
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPIC_CREATE)
     async def menu_topic_create(callback: CallbackQuery, state: FSMContext) -> None:
@@ -457,11 +466,18 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     @router.callback_query(StateFilter("*"), F.data == MENU_COLLECTIONS)
     async def menu_collections(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await _show_screen(
-            callback,
-            await _render_collections_overview_screen(session_factory),
-            await _build_collections_keyboard_from_db(session_factory),
-        )
+        await _show_collections_page(callback, session_factory, page=0)
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(COLLECTIONS_PAGE_PREFIX))
+    async def collections_page(callback: CallbackQuery) -> None:
+        page = _parse_page_callback(callback.data, COLLECTIONS_PAGE_PREFIX)
+        if page is None:
+            await callback.answer("Не удалось открыть страницу коллекций.", show_alert=True)
+            return
+        if page < 0:
+            await callback.answer("Страница вне диапазона.", show_alert=True)
+            return
+        await _show_collections_page(callback, session_factory, page=page)
 
     @router.callback_query(F.data.startswith(COLLECTION_VIEW_PREFIX))
     async def collection_view(callback: CallbackQuery) -> None:
@@ -495,7 +511,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entry_back_callback=MENU_COLLECTIONS,
             )
             if entries
-            else await _build_collections_keyboard_from_db(session_factory)
+            else await _build_collections_keyboard_from_db(session_factory, page=0)
         )
         await _show_screen(
             callback,
@@ -682,6 +698,39 @@ async def _load_search_results(
     return rows[:page_size], has_next_page
 
 
+def _paginate_rows(rows: list, *, page: int, page_size: int) -> tuple[list, bool]:
+    if page < 0:
+        return [], False
+    offset = page * page_size
+    chunk = rows[offset : offset + page_size + 1]
+    has_next_page = len(chunk) > page_size
+    return chunk[:page_size], has_next_page
+
+
+async def _load_topics_page(
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+    page_size: int = PAGE_SIZE,
+) -> tuple[list[TopicDTO], bool]:
+    async with session_factory() as session:
+        service = TopicService(TopicsRepository(session))
+        rows = await service.list_tree()
+    return _paginate_rows(rows, page=page, page_size=page_size)
+
+
+async def _load_collections_page(
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+    page_size: int = PAGE_SIZE,
+) -> tuple[list[SavedViewDTO], bool]:
+    async with session_factory() as session:
+        service = CollectionService(SavedViewsRepository(session), session)
+        rows = await service.list_saved_views()
+    return _paginate_rows(rows, page=page, page_size=page_size)
+
+
 async def _show_list_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
@@ -695,6 +744,50 @@ async def _show_list_page(
         status_name=status_name,
         page=page,
         page_size=PAGE_SIZE,
+    )
+
+
+async def _show_topics_page(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+) -> None:
+    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
+    await _show_screen(
+        callback,
+        _render_topics_overview_screen(items, page=page),
+        build_topics_keyboard(
+            items,
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=TOPICS_PAGE_PREFIX,
+        ),
+    )
+
+
+async def _show_collections_page(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+) -> None:
+    items, has_next_page = await _load_collections_page(
+        session_factory,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    await _show_screen(
+        callback,
+        _render_collections_overview_screen(items, page=page),
+        build_collections_keyboard(
+            items,
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
+        ),
     )
     await _show_screen(
         callback,
@@ -849,40 +942,48 @@ def _allowed_target_statuses(current_status: str) -> list[str]:
     return options
 
 
-async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker):
-    async with session_factory() as session:
-        service = TopicService(TopicsRepository(session))
-        topics = await service.list_tree()
-    return build_topics_keyboard(topics)
+async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
+    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
+    return build_topics_keyboard(
+        items,
+        page=page,
+        has_prev_page=page > 0,
+        has_next_page=has_next_page,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
 
 
-async def _render_topics_overview_screen(session_factory: async_sessionmaker) -> str:
-    async with session_factory() as session:
-        service = TopicService(TopicsRepository(session))
-        topics = await service.list_tree()
-    if not topics:
+def _render_topics_overview_screen(topics: list[TopicDTO], *, page: int = 0) -> str:
+    if not topics and page == 0:
         return "Темы пока не найдены.\n\nМожно создать первую тему кнопкой ниже."
-    return "Темы:\nВыберите тему кнопкой ниже или создайте новую."
+    if not topics:
+        return "Темы:\nСтраница пуста. Вернитесь назад."
+    page_hint = "" if page == 0 else f" (страница {page + 1})"
+    return f"Темы{page_hint}:\nВыберите тему кнопкой ниже или создайте новую."
 
 
-async def _build_collections_keyboard_from_db(session_factory: async_sessionmaker):
-    async with session_factory() as session:
-        service = CollectionService(SavedViewsRepository(session), session)
-        collections = await service.list_saved_views()
-    return build_collections_keyboard(collections)
+async def _build_collections_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
+    items, has_next_page = await _load_collections_page(session_factory, page=page, page_size=PAGE_SIZE)
+    return build_collections_keyboard(
+        items,
+        page=page,
+        has_prev_page=page > 0,
+        has_next_page=has_next_page,
+        page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
+    )
 
 
-async def _render_collections_overview_screen(session_factory: async_sessionmaker) -> str:
-    async with session_factory() as session:
-        service = CollectionService(SavedViewsRepository(session), session)
-        collections = await service.list_saved_views()
-    if not collections:
+def _render_collections_overview_screen(collections: list[SavedViewDTO], *, page: int = 0) -> str:
+    if not collections and page == 0:
         return (
             "Сохраненные коллекции пока не найдены.\n\n"
             "Создать новую коллекцию пока можно командой:\n"
             "/collection_add <name> [status=...] [topic=...] [limit=...]"
         )
-    return "Коллекции:\nВыберите сохраненную коллекцию кнопкой ниже."
+    if not collections:
+        return "Коллекции:\nСтраница пуста. Вернитесь назад."
+    page_hint = "" if page == 0 else f" (страница {page + 1})"
+    return f"Коллекции{page_hint}:\nВыберите сохраненную коллекцию кнопкой ниже."
 
 
 def _parse_entry_id_from_callback(raw: str | None, prefix: str):
