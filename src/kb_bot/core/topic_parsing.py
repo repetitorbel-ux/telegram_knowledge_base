@@ -16,6 +16,12 @@ class TopicRenameCommand:
     new_name: str | None
 
 
+@dataclass(slots=True)
+class TopicDeleteCommand:
+    topic_id: uuid.UUID | None
+    topic_selector: str | None
+
+
 def parse_topic_add_command(text: str | None) -> TopicAddCommand:
     if not text:
         return TopicAddCommand(parent_topic_id=None, parent_selector=None, name=None)
@@ -77,3 +83,27 @@ def parse_topic_rename_command(text: str | None) -> TopicRenameCommand:
     except ValueError:
         return TopicRenameCommand(topic_id=None, new_name=None)
     return TopicRenameCommand(topic_id=topic_id, new_name=parts[2].strip())
+
+
+def parse_topic_delete_command(text: str | None) -> TopicDeleteCommand:
+    if not text:
+        return TopicDeleteCommand(topic_id=None, topic_selector=None)
+
+    quoted_match = re.match(r'^/topic_delete\s+(?:"([^"]+)"|\'([^\']+)\')\s*$', text.strip())
+    if quoted_match:
+        selector = quoted_match.group(1) or quoted_match.group(2)
+        return TopicDeleteCommand(topic_id=None, topic_selector=(selector or "").strip() or None)
+
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        return TopicDeleteCommand(topic_id=None, topic_selector=None)
+
+    raw_value = parts[1].strip()
+    if not raw_value:
+        return TopicDeleteCommand(topic_id=None, topic_selector=None)
+
+    try:
+        topic_id = uuid.UUID(raw_value)
+    except ValueError:
+        return TopicDeleteCommand(topic_id=None, topic_selector=raw_value)
+    return TopicDeleteCommand(topic_id=topic_id, topic_selector=None)
