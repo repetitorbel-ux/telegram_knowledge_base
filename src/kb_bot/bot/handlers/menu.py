@@ -693,6 +693,11 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             return
 
         await callback.answer("Запускаю restore...")
+        if callback.message is not None:
+            await callback.message.answer(
+                "Restore запущен. Это может занять до нескольких минут.",
+                reply_markup=build_backups_keyboard(),
+            )
         async with session_factory() as session:
             service = BackupService(BackupsRepository(session), session)
             try:

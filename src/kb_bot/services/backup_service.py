@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 import secrets
@@ -35,7 +36,12 @@ class BackupService:
         full_path = target_dir / filename
 
         sync_url, env = _to_pg_dump_url_and_env(database_url)
-        subprocess.run([pg_dump_bin, "-Fc", "-f", str(full_path), sync_url], check=True, env=env)
+        await asyncio.to_thread(
+            subprocess.run,
+            [pg_dump_bin, "-Fc", "-f", str(full_path), sync_url],
+            check=True,
+            env=env,
+        )
 
         checksum = _sha256_file(full_path)
         record = BackupRecord(filename=filename, file_path=str(full_path.resolve()), sha256_checksum=checksum)
@@ -84,7 +90,8 @@ class BackupService:
 
         sync_url, env = _to_pg_dump_url_and_env(database_url)
         _ensure_restore_target_is_safe(sync_url)
-        subprocess.run(
+        await asyncio.to_thread(
+            subprocess.run,
             [
                 pg_restore_bin,
                 "--clean",
