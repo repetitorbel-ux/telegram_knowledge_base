@@ -101,6 +101,14 @@ Release smoke options:
 - `CHANGELOG.md`
 - `docs/RELEASE_NOTES_POLICY.md`
 
+## Workspace AI
+
+- Repo entrypoint for Codex: [AGENTS.md](AGENTS.md)
+- Canonical workspace guide: [_workspace_admin/docs/WORKSPACE_GUIDE.md](../_workspace_admin/docs/WORKSPACE_GUIDE.md)
+- Windsurf opening guide: [_workspace_admin/docs/HOW_TO_OPEN_PROJECTS_WINDSURF.md](../_workspace_admin/docs/HOW_TO_OPEN_PROJECTS_WINDSURF.md)
+- Workspace project registry: [_workspace_admin/inventory/projects.yaml](../_workspace_admin/inventory/projects.yaml)
+- Local operator-oriented project note: [instructions/PROJECT_INSTRUCTION.md](instructions/PROJECT_INSTRUCTION.md)
+
 ## Current scope limits
 
 - No forwarded-message ingest flow yet
