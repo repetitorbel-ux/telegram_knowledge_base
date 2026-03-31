@@ -64,6 +64,7 @@ class BackupService:
         token: str,
         database_url: str,
         pg_restore_bin: str,
+        restore_timeout_sec: int = 1800,
     ) -> None:
         _cleanup_expired_tokens()
         expected = _RESTORE_TOKENS.get(backup_id)
@@ -105,7 +106,7 @@ class BackupService:
             ],
             check=True,
             env=env,
-            timeout=300,
+            timeout=restore_timeout_sec,
         )
         _RESTORE_TOKENS.pop(backup_id, None)
         record.restore_tested_at = datetime.now(UTC)

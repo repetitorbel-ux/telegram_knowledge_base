@@ -117,8 +117,10 @@ async def test_restore_success_marks_tested_and_consumes_token() -> None:
         assert str(record.id) not in backup_service_module._RESTORE_TOKENS
 
         command = run_mock.call_args.args[0]
+        timeout = run_mock.call_args.kwargs.get("timeout")
         assert "--single-transaction" in command
         assert "--no-owner" in command
         assert "--no-privileges" in command
+        assert timeout == 1800
     finally:
         file_path.unlink(missing_ok=True)

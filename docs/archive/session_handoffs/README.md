@@ -10,7 +10,8 @@ This folder stores historical `SESSION_HANDOFF_*` files moved from repository ro
 
 ## Current Root Convention
 
-Leave only the latest active handoffs in root, for example:
+Keep only one active handoff in repository root (the current session context). Move older files to this archive.
 
-- `SESSION_HANDOFF_2026-03-30_PROXY_RUNTIME_STATUS.md`
-- `SESSION_HANDOFF_2026-03-30_UI_GUIDED_STATUS.md`
+Example:
+
+- `SESSION_HANDOFF_2026-03-31_UI_RESTORE_STATUS.md`
