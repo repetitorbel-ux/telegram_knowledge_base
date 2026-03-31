@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
@@ -96,6 +98,7 @@ LIST_KIND_ALL = "all"
 LIST_KIND_NEW = "new"
 LIST_KIND_TO_READ = "to_read"
 LIST_KIND_VERIFIED = "verified"
+_ACTIVE_RESTORE_CHAT_IDS: set[int] = set()
 
 
 def create_menu_router(session_factory: async_sessionmaker) -> Router:
@@ -693,36 +696,31 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             return
 
         await callback.answer("Запускаю restore...")
-        if callback.message is not None:
-            await callback.message.answer(
-                f"Restore запущен. Это может занять время (таймаут: {settings.restore_timeout_sec} сек).",
-                reply_markup=build_backups_keyboard(),
-            )
-        async with session_factory() as session:
-            service = BackupService(BackupsRepository(session), session)
-            try:
-                token = await service.issue_restore_token(str(backup_id))
-                await service.restore_backup(
-                    backup_id=str(backup_id),
-                    token=token,
-                    database_url=settings.database_url,
-                    pg_restore_bin=settings.pg_restore_bin,
-                    restore_timeout_sec=settings.restore_timeout_sec,
-                )
-            except Exception as exc:
-                if callback.message is not None:
-                    await callback.message.answer(
-                        f"Restore failed: {exc}",
-                        reply_markup=build_backups_keyboard(),
-                    )
-                return
+        if callback.message is None:
+            return
 
-        if callback.message is not None:
+        chat_id = callback.message.chat.id
+        if chat_id in _ACTIVE_RESTORE_CHAT_IDS:
             await callback.message.answer(
-                "Restore completed.\n\n"
-                "Рекомендуется проверить `/stats` и быстрый список записей.",
+                "Restore уже выполняется для этого чата. Дождитесь финального результата.",
                 reply_markup=build_backups_keyboard(),
             )
+            return
+
+        _ACTIVE_RESTORE_CHAT_IDS.add(chat_id)
+        await callback.message.answer(
+            f"Restore запущен в фоне. Это может занять время (таймаут: {settings.restore_timeout_sec} сек).",
+            reply_markup=build_backups_keyboard(),
+        )
+        asyncio.create_task(
+            _run_restore_and_notify(
+                bot=callback.bot,
+                chat_id=chat_id,
+                session_factory=session_factory,
+                settings=settings,
+                backup_id=str(backup_id),
+            )
+        )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_HELP)
     async def menu_help(callback: CallbackQuery, state: FSMContext) -> None:
@@ -746,6 +744,47 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         )
 
     return router
+
+
+async def _run_restore_and_notify(
+    *,
+    bot,
+    chat_id: int,
+    session_factory: async_sessionmaker,
+    settings,
+    backup_id: str,
+) -> None:
+    try:
+        async with session_factory() as session:
+            service = BackupService(BackupsRepository(session), session)
+            token = await service.issue_restore_token(backup_id)
+            await service.restore_backup(
+                backup_id=backup_id,
+                token=token,
+                database_url=settings.database_url,
+                pg_restore_bin=settings.pg_restore_bin,
+                restore_timeout_sec=settings.restore_timeout_sec,
+            )
+    except Exception as exc:
+        try:
+            await bot.send_message(
+                chat_id,
+                f"Restore failed: {exc}",
+                reply_markup=build_backups_keyboard(),
+            )
+        finally:
+            _ACTIVE_RESTORE_CHAT_IDS.discard(chat_id)
+        return
+
+    try:
+        await bot.send_message(
+            chat_id,
+            "Restore completed.\n\n"
+            "Рекомендуется проверить `/stats` и быстрый список записей.",
+            reply_markup=build_backups_keyboard(),
+        )
+    finally:
+        _ACTIVE_RESTORE_CHAT_IDS.discard(chat_id)
 
 
 async def _load_entries(
