@@ -1,7 +1,6 @@
 import tempfile
 import types
 import uuid
-from collections.abc import Coroutine
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -10,14 +9,6 @@ import pytest
 from kb_bot.db.orm.backup import BackupRecord
 from kb_bot.services import backup_service as backup_service_module
 from kb_bot.services.backup_service import BackupService
-
-
-def run_coroutine(coroutine: Coroutine[object, object, object]) -> object:
-    while True:
-        try:
-            coroutine.send(None)
-        except StopIteration as done:
-            return done.value
 
 
 class FakeBackupsRepository:
@@ -43,7 +34,8 @@ def _create_backup_file(content: bytes) -> Path:
     return path
 
 
-def test_restore_forbidden_for_protected_database() -> None:
+@pytest.mark.asyncio
+async def test_restore_forbidden_for_protected_database() -> None:
     file_path = _create_backup_file(b"backup-content")
     try:
         checksum = backup_service_module._sha256_file(file_path)
@@ -54,17 +46,15 @@ def test_restore_forbidden_for_protected_database() -> None:
             sha256_checksum=checksum,
         )
         service = BackupService(FakeBackupsRepository(record), types.SimpleNamespace(commit=AsyncMock()))
-        token = run_coroutine(service.issue_restore_token(str(record.id)))
+        token = await service.issue_restore_token(str(record.id))
 
         with patch("kb_bot.services.backup_service.subprocess.run") as run_mock:
             with pytest.raises(ValueError, match="protected database"):
-                run_coroutine(
-                    service.restore_backup(
-                        backup_id=str(record.id),
-                        token=str(token),
-                        database_url="postgresql+asyncpg://postgres:secret@localhost:5432/postgres",
-                        pg_restore_bin="pg_restore",
-                    )
+                await service.restore_backup(
+                    backup_id=str(record.id),
+                    token=str(token),
+                    database_url="postgresql+asyncpg://postgres:secret@localhost:5432/postgres",
+                    pg_restore_bin="pg_restore",
                 )
 
         run_mock.assert_not_called()
@@ -72,7 +62,8 @@ def test_restore_forbidden_for_protected_database() -> None:
         file_path.unlink(missing_ok=True)
 
 
-def test_restore_rejects_checksum_mismatch() -> None:
+@pytest.mark.asyncio
+async def test_restore_rejects_checksum_mismatch() -> None:
     file_path = _create_backup_file(b"backup-content")
     try:
         record = BackupRecord(
@@ -82,17 +73,15 @@ def test_restore_rejects_checksum_mismatch() -> None:
             sha256_checksum="0" * 64,
         )
         service = BackupService(FakeBackupsRepository(record), types.SimpleNamespace(commit=AsyncMock()))
-        token = run_coroutine(service.issue_restore_token(str(record.id)))
+        token = await service.issue_restore_token(str(record.id))
 
         with patch("kb_bot.services.backup_service.subprocess.run") as run_mock:
             with pytest.raises(ValueError, match="checksum mismatch"):
-                run_coroutine(
-                    service.restore_backup(
-                        backup_id=str(record.id),
-                        token=str(token),
-                        database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
-                        pg_restore_bin="pg_restore",
-                    )
+                await service.restore_backup(
+                    backup_id=str(record.id),
+                    token=str(token),
+                    database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
+                    pg_restore_bin="pg_restore",
                 )
 
         run_mock.assert_not_called()
@@ -100,7 +89,8 @@ def test_restore_rejects_checksum_mismatch() -> None:
         file_path.unlink(missing_ok=True)
 
 
-def test_restore_success_marks_tested_and_consumes_token() -> None:
+@pytest.mark.asyncio
+async def test_restore_success_marks_tested_and_consumes_token() -> None:
     file_path = _create_backup_file(b"backup-content")
     try:
         checksum = backup_service_module._sha256_file(file_path)
@@ -112,16 +102,14 @@ def test_restore_success_marks_tested_and_consumes_token() -> None:
         )
         session = types.SimpleNamespace(commit=AsyncMock())
         service = BackupService(FakeBackupsRepository(record), session)
-        token = run_coroutine(service.issue_restore_token(str(record.id)))
+        token = await service.issue_restore_token(str(record.id))
 
         with patch("kb_bot.services.backup_service.subprocess.run") as run_mock:
-            run_coroutine(
-                service.restore_backup(
-                    backup_id=str(record.id),
-                    token=str(token),
-                    database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
-                    pg_restore_bin="pg_restore",
-                )
+            await service.restore_backup(
+                backup_id=str(record.id),
+                token=str(token),
+                database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
+                pg_restore_bin="pg_restore",
             )
 
         session.commit.assert_awaited_once()
