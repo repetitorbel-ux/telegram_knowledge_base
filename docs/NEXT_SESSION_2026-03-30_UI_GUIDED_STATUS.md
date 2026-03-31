@@ -57,6 +57,10 @@ Repository has already been restored and synchronized.
 
 ## Recommended Next Steps
 
-1. UX text polish for empty states and status guidance in UI screens.
-2. Add callback-level integration tests for full context-return chains.
-3. Run short manual smoke cycle and capture outcome in runbook notes.
+1. Run short manual smoke cycle using `docs/UI_GUIDED_INTERACTION/MANUAL_SMOKE_RUNBOOK_RU.md` and record result in its `Журнал прогонов`.
+2. Decide whether to extend pagination to currently non-paged UI screens with potentially large datasets.
+3. Evaluate safe UI restore flow design (two-step confirmation + explicit warning), keep command restore as default until approved.
+
+## Runbook Link
+
+- Guided UI manual smoke: `docs/UI_GUIDED_INTERACTION/MANUAL_SMOKE_RUNBOOK_RU.md`
