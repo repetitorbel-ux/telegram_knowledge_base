@@ -5,7 +5,7 @@ This runbook describes a safe restore flow for `telegram-kb-bot`.
 ## Preconditions
 
 - Bot process is running with valid DB access.
-- Backup exists in `backup_records` and the dump file still exists on disk.
+- Backup dump file exists on disk in `BACKUP_DIR`.
 - You understand restore impact: `pg_restore --clean --if-exists` recreates objects in target DB.
 
 ## Safety Controls Implemented
@@ -39,6 +39,9 @@ This runbook describes a safe restore flow for `telegram-kb-bot`.
   - Token expired or typo; issue a new one.
 - `backup file is missing`:
   - Restore dump file into expected path or choose another backup.
+- `backup not found`:
+  - Re-run `/backups` and use a fresh UUID from the latest list.
+  - Note: after restore to an older snapshot, `backup_records` may roll back; the bot resyncs catalog from dump files on listing.
 - `backup checksum mismatch`:
   - File was modified/corrupted. Do not restore; use another backup.
 - `restore to protected database ... is forbidden`:
@@ -49,3 +52,5 @@ This runbook describes a safe restore flow for `telegram-kb-bot`.
 - Keep dumps and DB credentials accessible only to trusted operators.
 - Prefer restoring during maintenance windows.
 - After restore, create a fresh backup and verify `/stats` + basic read commands.
+- Backup UUIDs can change after restore to older snapshots because DB state is restored from dump content.
+- `/backups` performs catalog resync from dump files so missing records are re-indexed automatically.
