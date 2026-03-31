@@ -29,6 +29,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_SEARCH,
     MENU_STATS,
     MENU_TOPIC_CREATE,
+    TOPIC_CREATE_CHILD_PREFIX,
     MENU_TOPICS,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -111,8 +112,10 @@ def build_add_topic_picker_keyboard(topics: list[TopicDTO]) -> InlineKeyboardMar
 
 
 def _render_topic_button_label(topic: TopicDTO) -> str:
-    prefix = "  " * topic.level
-    label = f"{prefix}{topic.name}"
+    if topic.level <= 0:
+        label = topic.name
+    else:
+        label = f"● {topic.name}"
     return label[:64]
 
 
@@ -262,6 +265,7 @@ def build_topics_keyboard(
 def build_topic_detail_keyboard(topic_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="К темам", callback_data=MENU_TOPICS)],
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],

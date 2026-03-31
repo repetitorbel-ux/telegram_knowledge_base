@@ -63,10 +63,12 @@ For each case, record command, expected result, actual result, and status.
 
 - Command(s):
   - `/topics`
-  - `/topic_add`
+  - `/topic_add <name>`
+  - `/topic_add "Neural Networks / AI" -> Codex`
   - `/topic_rename`
 - Expected:
   - topic hierarchy updates correctly
+  - nested subtopic is visually distinguishable in topic list/buttons
   - new/renamed topics visible in subsequent commands
 - Actual:
 - Status: `[ ] PASS` / `[ ] FAIL`

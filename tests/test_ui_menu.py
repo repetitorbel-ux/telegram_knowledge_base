@@ -54,6 +54,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
     TOPICS_PAGE_PREFIX,
+    TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -472,11 +473,14 @@ def test_parse_page_callback_for_topics() -> None:
 def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
     topics = [
         TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+        TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Child", full_path="Root.Child", level=1),
     ]
     keyboard = build_topics_keyboard(topics)
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert MENU_TOPIC_CREATE in callbacks
     assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert "● Child" in labels
 
 
 def test_topics_keyboard_contains_pagination_callbacks() -> None:
@@ -495,9 +499,10 @@ def test_topics_keyboard_contains_pagination_callbacks() -> None:
     assert f"{TOPICS_PAGE_PREFIX}2" in callbacks
 
 
-def test_topic_detail_keyboard_contains_rename_action() -> None:
+def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> None:
     keyboard = build_topic_detail_keyboard("11111111-1111-1111-1111-111111111111")
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_TOPICS in callbacks
 

@@ -40,6 +40,15 @@ class TopicsRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_by_name(self, name: str) -> list[Topic]:
+        stmt = (
+            select(Topic)
+            .where(Topic.name == name, Topic.is_active.is_(True))
+            .order_by(Topic.level.asc(), Topic.full_path.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def list_descendants(self, prefix: str) -> list[Topic]:
         stmt = select(Topic).where(Topic.full_path.like(f"{prefix}.%"))
         result = await self.session.execute(stmt)
