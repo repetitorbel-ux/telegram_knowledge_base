@@ -58,6 +58,28 @@
 
 ## Журнал прогонов
 
+### 2026-03-31 (manual smoke)
+
+- Окружение: local
+- Версия: `f015d68`
+- Оператор: user
+- Итог: PASS
+- Проверено:
+- /start -> list -> entry -> back: PASS
+- list -> entry -> status change -> back: PASS
+- search -> entry -> back: PASS
+- collections -> entry -> back: PASS
+- Дефекты/наблюдения:
+- ошибок в UI smoke не обнаружено
+
+### 2026-03-31 (pre-smoke automated baseline)
+
+- Окружение: local
+- Версия: `f015d68`
+- Итог: PASS (automated precheck)
+- Проверка: `python -m pytest -q` -> `86 passed in 8.48s`
+- Примечание: ручной Telegram smoke по шагам runbook остается обязательным.
+
 ### 2026-03-31 (добавлен runbook)
 
 - Окружение: n/a
