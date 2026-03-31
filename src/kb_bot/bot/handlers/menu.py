@@ -695,7 +695,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await callback.answer("Запускаю restore...")
         if callback.message is not None:
             await callback.message.answer(
-                "Restore запущен. Это может занять до нескольких минут.",
+                f"Restore запущен. Это может занять время (таймаут: {settings.restore_timeout_sec} сек).",
                 reply_markup=build_backups_keyboard(),
             )
         async with session_factory() as session:
@@ -707,6 +707,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                     token=token,
                     database_url=settings.database_url,
                     pg_restore_bin=settings.pg_restore_bin,
+                    restore_timeout_sec=settings.restore_timeout_sec,
                 )
             except Exception as exc:
                 if callback.message is not None:

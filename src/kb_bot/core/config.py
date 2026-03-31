@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     backup_dir: str = Field(default="backups", alias="BACKUP_DIR")
     pg_dump_bin: str = Field(default="pg_dump", alias="PG_DUMP_BIN")
     pg_restore_bin: str = Field(default="pg_restore", alias="PG_RESTORE_BIN")
+    restore_timeout_sec: int = Field(default=1800, alias="RESTORE_TIMEOUT_SEC")
 
 
 @lru_cache
