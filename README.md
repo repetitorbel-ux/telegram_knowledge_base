@@ -14,7 +14,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/status <entry_uuid> <status name>` with transition validation
   - `/entry <entry_uuid>` (entry card/details)
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
-  - `/topic_add` and `/topic_rename` for dynamic topic tree edits
+  - `/topic_add` and `/topic_rename` for dynamic topic tree edits, including nested subtopics
   - Forward message auto-save to default topic `Useful Channels`
   - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
   - CSV/JSON import via Telegram document (`/import`)
@@ -67,6 +67,19 @@ Release smoke options:
 ## Run tests
 
 - `python -m pytest -q`
+
+## Topic Hierarchy (User Flows)
+
+- Topics support nesting (for example: `Neural Networks / AI -> Codex`).
+- Menu UI:
+  - open `Темы` and pick a topic
+  - use `Добавить подтему` from topic detail card
+- Command mode (all supported):
+  - `/topic_add <name>`
+  - `/topic_add <parent_uuid|root> <name>`
+  - `/topic_add parent=<parent_full_path_or_name> <name>`
+  - `/topic_add "Neural Networks / AI" -> Codex`
+  - `/topic_rename <topic_uuid> <new_name>`
 
 ## Git Process
 

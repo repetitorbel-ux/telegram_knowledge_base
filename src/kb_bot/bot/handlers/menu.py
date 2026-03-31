@@ -48,6 +48,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    TOPIC_CREATE_CHILD_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -128,17 +129,21 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             )
             return
 
+        state_data = await state.get_data()
+        parent_topic_id = _parse_uuid_string(state_data.get("parent_topic_id"))
+
         async with session_factory() as session:
             service = TopicService(TopicsRepository(session), session)
             try:
-                topic = await service.create_topic(name=name)
+                topic = await service.create_topic(name=name, parent_topic_id=parent_topic_id)
             except (ValueError, TopicConflictError, TopicNotFoundError) as exc:
                 await message.answer(str(exc), reply_markup=build_flow_navigation_keyboard())
                 return
 
         await state.clear()
+        created_label = "Подтема создана" if parent_topic_id is not None else "Тема создана"
         await message.answer(
-            f"Тема создана: {topic.name}",
+            f"{created_label}: {topic.full_path}",
             reply_markup=await _build_topics_keyboard_from_db(session_factory),
         )
 
@@ -421,6 +426,33 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await _show_screen(
             callback,
             "Создание корневой темы.\nОтправьте название новой темы следующим сообщением.",
+            build_flow_navigation_keyboard(),
+        )
+
+    @router.callback_query(F.data.startswith(TOPIC_CREATE_CHILD_PREFIX))
+    async def topic_create_child_start(callback: CallbackQuery, state: FSMContext) -> None:
+        parent_topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_CREATE_CHILD_PREFIX)
+        if parent_topic_id is None:
+            await callback.answer("Не удалось выбрать родительскую тему.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            service = TopicService(TopicsRepository(session))
+            topics = await service.list_tree()
+
+        parent_topic = next((item for item in topics if str(item.id) == str(parent_topic_id)), None)
+        if parent_topic is None:
+            await callback.answer("Родительская тема не найдена.", show_alert=True)
+            return
+
+        await state.clear()
+        await state.update_data(parent_topic_id=str(parent_topic_id))
+        await state.set_state(TopicCreateStates.waiting_name)
+        await _show_screen(
+            callback,
+            "Создание подтемы.\n"
+            f"Родитель: `{parent_topic.full_path}`\n"
+            "Отправьте название подтемы следующим сообщением.",
             build_flow_navigation_keyboard(),
         )
 
@@ -769,6 +801,9 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/search <query>\n"
             "/list [status=New] [topic=<uuid>] [limit=20]\n"
             "/topics\n"
+            "/topic_add <name>\n"
+            "/topic_add \"<parent>\" -> <name>\n"
+            "/topic_rename <topic_uuid> <new_name>\n"
             "/stats\n"
             "/backup\n"
             "/backups\n\n"
