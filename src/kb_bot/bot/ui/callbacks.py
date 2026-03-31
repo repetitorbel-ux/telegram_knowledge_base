@@ -22,6 +22,8 @@ LIST_TO_READ = "list:to_read"
 LIST_VERIFIED = "list:verified"
 LIST_PAGE_PREFIX = "list:page:"
 SEARCH_PAGE_PREFIX = "search:page:"
+TOPICS_PAGE_PREFIX = "topics:page:"
+COLLECTIONS_PAGE_PREFIX = "collections:page:"
 
 ADD_TOPIC_PREFIX = "add:topic:"
 ENTRY_VIEW_PREFIX = "entry:view:"

@@ -23,6 +23,7 @@ from kb_bot.bot.handlers.menu import (
 from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
+    COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -45,6 +46,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -425,6 +427,11 @@ def test_parse_page_callback() -> None:
     assert page == 3
 
 
+def test_parse_page_callback_for_topics() -> None:
+    page = _parse_page_callback(f"{TOPICS_PAGE_PREFIX}4", TOPICS_PAGE_PREFIX)
+    assert page == 4
+
+
 def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
     topics = [
         TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
@@ -433,6 +440,22 @@ def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert MENU_TOPIC_CREATE in callbacks
     assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_topics_keyboard_contains_pagination_callbacks() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+    ]
+    keyboard = build_topics_keyboard(
+        topics,
+        page=1,
+        has_prev_page=True,
+        has_next_page=True,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPICS_PAGE_PREFIX}0" in callbacks
+    assert f"{TOPICS_PAGE_PREFIX}2" in callbacks
 
 
 def test_topic_detail_keyboard_contains_rename_action() -> None:
@@ -454,6 +477,26 @@ def test_collections_keyboard_contains_collection_callbacks() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{COLLECTION_VIEW_PREFIX}33333333-3333-3333-3333-333333333333" in callbacks
     assert MENU_COLLECTIONS in callbacks
+
+
+def test_collections_keyboard_contains_pagination_callbacks() -> None:
+    collections = [
+        SavedViewDTO(
+            id="33333333-3333-3333-3333-333333333333",
+            name="New items",
+            filter_snapshot={"status_name": "New", "topic_id": None, "limit": 20},
+        )
+    ]
+    keyboard = build_collections_keyboard(
+        collections,
+        page=2,
+        has_prev_page=True,
+        has_next_page=True,
+        page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{COLLECTIONS_PAGE_PREFIX}1" in callbacks
+    assert f"{COLLECTIONS_PAGE_PREFIX}3" in callbacks
 
 
 def test_render_topic_detail_screen_contains_fields() -> None:
