@@ -3,11 +3,13 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.core.forward_parsing import build_forward_notes, build_forward_title, extract_first_url
+from kb_bot.db.orm.topic import Topic
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
-from kb_bot.domain.errors import DuplicateEntryError, TopicNotFoundError
+from kb_bot.domain.errors import DuplicateEntryError, TopicConflictError, TopicNotFoundError
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
+from kb_bot.services.topic_service import TopicService
 
 
 def _origin_repr(message: Message) -> str | None:
@@ -27,15 +29,16 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
     @router.message(F.forward_origin | F.forward_from | F.forward_from_chat)
     async def save_forward_handler(message: Message) -> None:
         text = message.text or message.caption or ""
-        original_url = extract_first_url(text)
+        entities = [*(message.entities or []), *(message.caption_entities or [])]
+        original_url = extract_first_url(text, entities=entities)
         title = build_forward_title(text)
         notes = build_forward_notes(text, _origin_repr(message))
 
         async with session_factory() as session:
             topics_repo = TopicsRepository(session)
-            default_topic = await topics_repo.get_by_name("Useful Channels")
+            default_topic = await _resolve_forward_topic(topics_repo, session)
             if default_topic is None:
-                await message.answer("Default topic 'Useful Channels' not found.")
+                await message.answer("Forward topic 'To read' is unavailable.")
                 return
 
             service = EntryService(
@@ -49,6 +52,7 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
                 primary_topic_id=default_topic.id,
                 original_url=original_url,
                 notes=notes,
+                status_code="TO_READ",
             )
             try:
                 entry = await service.create_manual(payload)
@@ -63,9 +67,39 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
             f"Forward saved:\n"
             f"ID: `{entry.id}`\n"
             f"Title: {entry.title}\n"
-            f"Topic: Useful Channels\n"
+            f"Topic: {default_topic.name}\n"
+            f"Status: {entry.status_name}\n"
             f"URL: {entry.normalized_url or '-'}"
         )
 
     return router
 
+
+async def _resolve_forward_topic(topics_repo: TopicsRepository, session) -> Topic | None:
+    topic = await topics_repo.get_by_slug("to_read")
+    if topic is not None:
+        return topic
+
+    topic = await topics_repo.get_by_name("To read")
+    if topic is not None:
+        return topic
+
+    topic = await topics_repo.get_by_name("To Read")
+    if topic is not None:
+        return topic
+
+    service = TopicService(topics_repo, session=session)
+    try:
+        await service.create_topic("To read")
+    except TopicConflictError:
+        pass
+
+    topic = await topics_repo.get_by_slug("to_read")
+    if topic is not None:
+        return topic
+
+    topic = await topics_repo.get_by_name("To read")
+    if topic is not None:
+        return topic
+
+    return await topics_repo.get_by_name("To Read")

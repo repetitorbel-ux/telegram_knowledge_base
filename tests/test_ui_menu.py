@@ -8,6 +8,7 @@ from kb_bot.bot.handlers.menu import (
     _parse_entry_view_callback,
     _parse_entry_id_from_callback,
     _parse_list_page_callback,
+    _parse_topic_entries_page_callback,
     _parse_page_callback,
     _parse_status_update_callback,
     _resolve_entry_back_action,
@@ -53,10 +54,12 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    TOPIC_ENTRIES_PAGE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
+    TOPIC_QUICK_ENTRY_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -418,6 +421,22 @@ def test_resolve_entry_back_action_for_search_page() -> None:
     assert text == "Назад к поиску"
 
 
+def test_resolve_entry_back_action_for_topic_entries_page() -> None:
+    callback, text = _resolve_entry_back_action(
+        f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
+    )
+    assert callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
+    assert text == "Назад к теме"
+
+
+def test_resolve_entry_back_action_for_topic_view_page() -> None:
+    callback, text = _resolve_entry_back_action(
+        f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+    )
+    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+    assert text == "Назад к теме"
+
+
 def test_resolve_entry_back_action_for_list_page() -> None:
     callback, text = _resolve_entry_back_action(f"{LIST_PAGE_PREFIX}verified:3")
     assert callback == f"{LIST_PAGE_PREFIX}verified:3"
@@ -473,6 +492,16 @@ def test_parse_page_callback_for_topics() -> None:
     assert page == 4
 
 
+def test_parse_topic_entries_page_callback() -> None:
+    parsed = _parse_topic_entries_page_callback(
+        f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:3"
+    )
+    assert parsed is not None
+    topic_id, page = parsed
+    assert str(topic_id) == "11111111-1111-1111-1111-111111111111"
+    assert page == 3
+
+
 def test_topics_keyboard_contains_create_and_topic_callbacks() -> None:
     topics = [
         TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
@@ -505,10 +534,31 @@ def test_topics_keyboard_contains_pagination_callbacks() -> None:
 def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> None:
     keyboard = build_topic_detail_keyboard("11111111-1111-1111-1111-111111111111")
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
     assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_TOPICS in callbacks
+
+
+def test_topic_detail_keyboard_contains_quick_entry_buttons() -> None:
+    entries = [
+        EntryDetail(
+            entry_id="22222222-2222-2222-2222-222222222222",
+            title="Telegram Bot API Overview",
+            status_name="New",
+            topic_name="To Read",
+            original_url="https://core.telegram.org/bots/api",
+            normalized_url="https://core.telegram.org/bots/api",
+            notes=None,
+        )
+    ]
+    keyboard = build_topic_detail_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        quick_entries=entries,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_QUICK_ENTRY_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
 
 
 def test_topic_delete_confirm_keyboard_contains_confirm_and_cancel() -> None:
@@ -563,6 +613,31 @@ def test_render_topic_detail_screen_contains_fields() -> None:
     assert "Карточка темы:" in text
     assert "Python" in text
     assert "Programming.Python" in text
+
+
+def test_render_topic_detail_screen_contains_topic_entries_preview() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="To Read",
+        full_path="to_read",
+        level=0,
+    )
+    entries = [
+        EntryDetail(
+            entry_id="22222222-2222-2222-2222-222222222222",
+            title="Qwen3.6 Plus Preview появился на OpenRouter",
+            status_name="To Read",
+            topic_name="To Read",
+            original_url="https://example.com/post",
+            normalized_url="https://example.com/post",
+            notes="note",
+        )
+    ]
+
+    text = _render_topic_detail_screen(topic, entries=entries)
+    assert "Последние записи в теме:" in text
+    assert "Qwen3.6 Plus Preview появился на OpenRouter" in text
+    assert "Ссылка: https://example.com/post" in text
 
 
 def test_render_collection_result_screen_contains_summary() -> None:

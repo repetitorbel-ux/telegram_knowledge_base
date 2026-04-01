@@ -40,6 +40,11 @@ class TopicsRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_slug(self, slug: str) -> Topic | None:
+        stmt = select(Topic).where(Topic.slug == slug, Topic.is_active.is_(True)).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_by_name(self, name: str) -> list[Topic]:
         stmt = (
             select(Topic)

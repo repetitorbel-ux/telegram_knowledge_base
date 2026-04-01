@@ -29,10 +29,12 @@ from kb_bot.bot.ui.callbacks import (
     MENU_SEARCH,
     MENU_STATS,
     MENU_TOPIC_CREATE,
+    TOPIC_ENTRIES_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
     MENU_TOPICS,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
+    TOPIC_QUICK_ENTRY_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -264,9 +266,28 @@ def build_topics_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def build_topic_detail_keyboard(topic_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def build_topic_detail_keyboard(
+    topic_id: str,
+    *,
+    topic_entries_callback: str | None = None,
+    quick_entries: list[EntryDetail] | None = None,
+) -> InlineKeyboardMarkup:
+    entries_callback = topic_entries_callback or f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:0"
+    rows: list[list[InlineKeyboardButton]] = []
+    if quick_entries:
+        for entry in quick_entries[:5]:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=_render_entry_button_label(entry),
+                        callback_data=f"{TOPIC_QUICK_ENTRY_PREFIX}{entry.entry_id}",
+                    )
+                ]
+            )
+
+    rows.extend(
+        [
+            [InlineKeyboardButton(text="Открыть все записи темы", callback_data=entries_callback)],
             [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
@@ -274,6 +295,7 @@ def build_topic_detail_keyboard(topic_id: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def build_topic_delete_confirm_keyboard(topic_id: str) -> InlineKeyboardMarkup:
