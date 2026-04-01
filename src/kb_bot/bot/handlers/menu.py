@@ -52,6 +52,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
+    TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_QUICK_ENTRY_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
@@ -65,6 +66,7 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_flow_navigation_keyboard,
     build_entry_detail_keyboard,
+    build_entry_preview_keyboard,
     build_entry_results_keyboard,
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
@@ -339,6 +341,9 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await callback.answer("Не удалось открыть запись.", show_alert=True)
             return
         entry_id, entry_back_callback = parsed
+        if entry_back_callback is None:
+            state_data = await state.get_data()
+            entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
         back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
         await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
 
@@ -485,6 +490,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await _show_topic_entries_page(
                 callback,
                 session_factory,
+                state=state,
                 topic=topic,
                 topic_id=topic_id,
                 page=0,
@@ -526,9 +532,44 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await _show_topic_entries_page(
             callback,
             session_factory,
+            state=state,
             topic=topic,
             topic_id=topic_id,
             page=page,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_ENTRY_PREVIEW_PREFIX))
+    async def topic_entry_preview(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, TOPIC_ENTRY_PREVIEW_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть предпросмотр.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
+        back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
+        if back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+            back_text = "Назад к записям"
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
+
+        await _show_screen(
+            callback,
+            _render_entry_preview_screen(detail),
+            build_entry_preview_keyboard(
+                str(detail.entry_id),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
         )
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_QUICK_ENTRY_PREFIX))
@@ -1195,10 +1236,16 @@ async def _show_topic_entries_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
     *,
+    state: FSMContext | None = None,
     topic: TopicDTO,
     topic_id,
     page: int,
 ) -> None:
+    if state is not None:
+        await state.update_data(
+            topic_view_id=str(topic_id),
+            topic_entries_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
+        )
     rows, has_next_page = await _load_topic_entries(
         session_factory,
         topic_id=topic_id,
@@ -1221,6 +1268,7 @@ async def _show_topic_entries_page(
             has_next_page=has_next_page,
             page_callback_prefix=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:",
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
+            preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
         ),
     )
 
@@ -1335,6 +1383,9 @@ def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int
             "- добавить новую запись через меню."
         )
 
+    if title.startswith("Записи темы:"):
+        return f"{header}:\nВыберите запись кнопкой ниже."
+
     lines = [header + ":"]
     for item in items:
         lines.append(f"- {item.title} [{item.status_name}] ({item.topic_name})")
@@ -1389,6 +1440,20 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
         f"Тема: {detail.topic_name}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
         f"Заметки: {detail.notes or '-'}"
+    )
+
+
+def _render_entry_preview_screen(detail: EntryDetail) -> str:
+    link = detail.normalized_url or detail.original_url or "-"
+    description = _render_preview_block(detail.description)
+    notes = _render_preview_block(detail.notes)
+    return (
+        "Быстрый просмотр:\n"
+        f"Заголовок: {detail.title}\n"
+        f"Тема: {detail.topic_name}\n"
+        f"URL: {link}\n\n"
+        f"Описание:\n{description}\n\n"
+        f"Заметки:\n{notes}"
     )
 
 
@@ -1562,6 +1627,17 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
     return MENU_LIST, "Назад к фильтрам"
 
 
+def _resolve_entry_back_callback_from_state(state_data: dict) -> str | None:
+    topic_entries_callback = state_data.get("topic_entries_back_callback")
+    if isinstance(topic_entries_callback, str) and topic_entries_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+        return topic_entries_callback
+
+    topic_id = _parse_uuid_string(state_data.get("topic_view_id"))
+    if topic_id is not None:
+        return f"{TOPIC_VIEW_PREFIX}{topic_id}"
+    return None
+
+
 def _resolve_status_back_action(state_data: dict):
     back_callback, back_text = _resolve_entry_back_action(state_data.get("entry_back_callback"))
     stored_back_text = state_data.get("entry_back_text")
@@ -1579,3 +1655,14 @@ def _parse_uuid_string(raw: str | None):
         return uuid.UUID(raw)
     except ValueError:
         return None
+
+
+def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
+    if not value:
+        return "-"
+    compact = value.strip()
+    if not compact:
+        return "-"
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
