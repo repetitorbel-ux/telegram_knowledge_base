@@ -29,6 +29,7 @@ COLLECTIONS_PAGE_PREFIX = "collections:page:"
 
 ADD_TOPIC_PREFIX = "add:topic:"
 ENTRY_VIEW_PREFIX = "entry:view:"
+ENTRY_STATUS_MENU_PREFIX = "entry:status_menu:"
 ENTRY_STATUS_PREFIX = "entry:status:"
 TOPIC_VIEW_PREFIX = "topic:view:"
 TOPIC_QUICK_ENTRY_PREFIX = "topic:open:"

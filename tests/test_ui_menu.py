@@ -25,6 +25,7 @@ from kb_bot.bot.handlers.menu import (
     _render_stats_screen,
     _render_topic_detail_screen,
     _render_topics_screen,
+    _resolve_topic_entries_back_action,
 )
 from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
@@ -34,6 +35,7 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_NEW,
@@ -74,6 +76,7 @@ from kb_bot.bot.ui.keyboards import (
     build_entry_detail_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
+    build_entry_status_picker_keyboard,
     build_flow_navigation_keyboard,
     build_import_export_keyboard,
     build_list_filters_keyboard,
@@ -350,15 +353,26 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
 
 
-def test_entry_detail_keyboard_contains_status_actions() -> None:
+def test_entry_detail_keyboard_contains_change_status_action() -> None:
     keyboard = build_entry_detail_keyboard(
         "11111111-1111-1111-1111-111111111111",
         ["To Read", "Important"],
         include_back_to_list=True,
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_entry_status_picker_keyboard_contains_status_actions() -> None:
+    keyboard = build_entry_status_picker_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        ["To Read", "Important"],
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:To Read" in callbacks
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:Important" in callbacks
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
 
 
 def test_render_search_results_screen_prompts_selection() -> None:
@@ -389,6 +403,24 @@ def test_render_entry_detail_screen_contains_fields() -> None:
     assert "Статус:" in text
     assert "Entry title" in text
     assert "Python" in text
+
+
+def test_render_entry_detail_screen_compacts_long_notes() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="To Read",
+        topic_name="To Read",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="line one\nline two\n" + ("very long body " * 80),
+    )
+    text = _render_entry_detail_screen(detail)
+    assert "Карточка записи:" in text
+    assert "Заметки: line one line two" in text
+    assert "… " not in text
+    assert "…" in text
+    assert len(text) < 700
 
 
 def test_render_entry_preview_screen_contains_description_and_notes() -> None:
@@ -499,13 +531,43 @@ def test_resolve_entry_back_action_for_topic_entries_page() -> None:
         f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
     )
     assert callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
-    assert text == "Назад к теме"
+    assert text == "Назад к записям"
 
 
 def test_resolve_entry_back_action_for_topic_view_page() -> None:
     callback, text = _resolve_entry_back_action(
         f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
     )
+    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+    assert text == "Назад к теме"
+
+
+def test_resolve_entry_back_action_for_topics_menu() -> None:
+    callback, text = _resolve_entry_back_action(MENU_TOPICS)
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
+
+
+def test_resolve_topic_entries_back_action_for_to_read_topic() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="To Read",
+        full_path="to_read",
+        level=0,
+    )
+    callback, text = _resolve_topic_entries_back_action(topic)
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
+
+
+def test_resolve_topic_entries_back_action_for_regular_topic() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="Python",
+        full_path="Programming.Python",
+        level=1,
+    )
+    callback, text = _resolve_topic_entries_back_action(topic)
     assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
     assert text == "Назад к теме"
 

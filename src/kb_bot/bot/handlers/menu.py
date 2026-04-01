@@ -22,6 +22,7 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_ALL,
@@ -68,6 +69,7 @@ from kb_bot.bot.ui.keyboards import (
     build_entry_detail_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
+    build_entry_status_picker_keyboard,
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
@@ -366,6 +368,39 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             ),
         )
 
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_STATUS_MENU_PREFIX))
+    async def entry_status_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_STATUS_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть выбор статуса.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback = state_data.get("entry_back_callback")
+        if not isinstance(entry_back_callback, str):
+            entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
+        back_callback, back_text = _resolve_status_back_action(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await _show_screen(
+            callback,
+            _render_entry_detail_screen(detail) + "\n\nВыберите новый статус:",
+            build_entry_status_picker_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
     @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_STATUS_PREFIX))
     async def entry_status_update(callback: CallbackQuery, state: FSMContext) -> None:
         parsed = _parse_status_update_callback(callback.data)
@@ -582,7 +617,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         state_data = await state.get_data()
         topic_id = _parse_uuid_string(state_data.get("topic_view_id"))
         back_callback = MENU_TOPICS
-        back_text = "К темам"
+        back_text = "Назад к списку тем"
         if topic_id is not None:
             back_callback = f"{TOPIC_VIEW_PREFIX}{topic_id}"
             back_text = "Назад к теме"
@@ -1246,6 +1281,7 @@ async def _show_topic_entries_page(
             topic_view_id=str(topic_id),
             topic_entries_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
         )
+    back_callback, back_text = _resolve_topic_entries_back_action(topic)
     rows, has_next_page = await _load_topic_entries(
         session_factory,
         topic_id=topic_id,
@@ -1261,8 +1297,8 @@ async def _show_topic_entries_page(
         ),
         build_entry_results_keyboard(
             rows,
-            back_callback=f"{TOPIC_VIEW_PREFIX}{topic_id}",
-            back_text="Назад к теме",
+            back_callback=back_callback,
+            back_text=back_text,
             page=page,
             has_prev_page=page > 0,
             has_next_page=has_next_page,
@@ -1315,7 +1351,12 @@ async def _show_screen(
     except TelegramBadRequest as exc:
         error_text = str(exc).lower()
         if "message is not modified" in error_text:
-            await callback.message.edit_reply_markup(reply_markup=markup)
+            current_text = (callback.message.text or "").strip()
+            target_text = text.strip()
+            if current_text == target_text:
+                await callback.message.edit_reply_markup(reply_markup=markup)
+                return
+            await callback.message.answer(text, reply_markup=markup)
             return
         await callback.message.answer(text, reply_markup=markup)
 
@@ -1432,6 +1473,7 @@ def _render_search_results_screen(items: list, query: str, *, page: int = 0) -> 
 
 
 def _render_entry_detail_screen(detail: EntryDetail) -> str:
+    compact_notes = _render_compact_card_notes(detail.notes)
     return (
         "Карточка записи:\n"
         f"ID: `{detail.entry_id}`\n"
@@ -1439,7 +1481,7 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
         f"Статус: {detail.status_name}\n"
         f"Тема: {detail.topic_name}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
-        f"Заметки: {detail.notes or '-'}"
+        f"Заметки: {compact_notes}"
     )
 
 
@@ -1609,6 +1651,12 @@ def _get_list_kind_config(list_kind: str):
     return mapping.get(list_kind, (None, "Последние записи"))
 
 
+def _resolve_topic_entries_back_action(topic: TopicDTO) -> tuple[str, str]:
+    if topic.full_path == "to_read":
+        return MENU_TOPICS, "Назад к списку тем"
+    return f"{TOPIC_VIEW_PREFIX}{topic.id}", "Назад к теме"
+
+
 def _resolve_entry_back_action(entry_back_callback: str | None):
     if not entry_back_callback:
         return MENU_LIST, "Назад к фильтрам"
@@ -1617,9 +1665,11 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
     if entry_back_callback.startswith(SEARCH_PAGE_PREFIX):
         return entry_back_callback, "Назад к поиску"
     if entry_back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
-        return entry_back_callback, "Назад к теме"
+        return entry_back_callback, "Назад к записям"
     if entry_back_callback.startswith(TOPIC_VIEW_PREFIX):
         return entry_back_callback, "Назад к теме"
+    if entry_back_callback == MENU_TOPICS:
+        return MENU_TOPICS, "Назад к списку тем"
     if entry_back_callback == MENU_COLLECTIONS:
         return MENU_COLLECTIONS, "К коллекциям"
     if entry_back_callback == MENU_LIST:
@@ -1661,6 +1711,18 @@ def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
     if not value:
         return "-"
     compact = value.strip()
+    if not compact:
+        return "-"
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _render_compact_card_notes(value: str | None, *, limit: int = 260) -> str:
+    if not value:
+        return "-"
+    # Keep the card scannable: notes can be very long for forwarded posts.
+    compact = " ".join(value.split())
     if not compact:
         return "-"
     if len(compact) <= limit:
