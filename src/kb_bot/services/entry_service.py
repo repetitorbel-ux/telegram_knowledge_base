@@ -121,3 +121,10 @@ class EntryService:
             notes=entry.notes,
             saved_date=entry.saved_date,
         )
+
+    async def delete(self, entry_id: uuid.UUID) -> None:
+        entry = await self.entries_repo.get(entry_id)
+        if entry is None:
+            raise EntryNotFoundError("entry not found")
+        await self.entries_repo.delete(entry)
+        await self.session.commit()

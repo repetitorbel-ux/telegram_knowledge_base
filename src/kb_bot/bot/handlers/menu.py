@@ -22,6 +22,9 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
+    ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_ALL,
@@ -52,6 +55,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
+    TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_QUICK_ENTRY_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
@@ -65,7 +69,11 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_flow_navigation_keyboard,
     build_entry_detail_keyboard,
+    build_entry_delete_confirm_keyboard,
+    build_post_entry_delete_keyboard,
+    build_entry_preview_keyboard,
     build_entry_results_keyboard,
+    build_entry_status_picker_keyboard,
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
@@ -303,23 +311,23 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         )
 
     @router.callback_query(StateFilter("*"), F.data == LIST_ALL)
-    async def list_all(callback: CallbackQuery) -> None:
-        await _show_list_page(callback, session_factory, list_kind=LIST_KIND_ALL, page=0)
+    async def list_all(callback: CallbackQuery, state: FSMContext) -> None:
+        await _show_list_page(callback, session_factory, state=state, list_kind=LIST_KIND_ALL, page=0)
 
     @router.callback_query(StateFilter("*"), F.data == LIST_NEW)
-    async def list_new(callback: CallbackQuery) -> None:
-        await _show_list_page(callback, session_factory, list_kind=LIST_KIND_NEW, page=0)
+    async def list_new(callback: CallbackQuery, state: FSMContext) -> None:
+        await _show_list_page(callback, session_factory, state=state, list_kind=LIST_KIND_NEW, page=0)
 
     @router.callback_query(StateFilter("*"), F.data == LIST_TO_READ)
-    async def list_to_read(callback: CallbackQuery) -> None:
-        await _show_list_page(callback, session_factory, list_kind=LIST_KIND_TO_READ, page=0)
+    async def list_to_read(callback: CallbackQuery, state: FSMContext) -> None:
+        await _show_list_page(callback, session_factory, state=state, list_kind=LIST_KIND_TO_READ, page=0)
 
     @router.callback_query(StateFilter("*"), F.data == LIST_VERIFIED)
-    async def list_verified(callback: CallbackQuery) -> None:
-        await _show_list_page(callback, session_factory, list_kind=LIST_KIND_VERIFIED, page=0)
+    async def list_verified(callback: CallbackQuery, state: FSMContext) -> None:
+        await _show_list_page(callback, session_factory, state=state, list_kind=LIST_KIND_VERIFIED, page=0)
 
     @router.callback_query(StateFilter("*"), F.data.startswith(LIST_PAGE_PREFIX))
-    async def list_page(callback: CallbackQuery) -> None:
+    async def list_page(callback: CallbackQuery, state: FSMContext) -> None:
         parsed = _parse_list_page_callback(callback.data)
         if parsed is None:
             await callback.answer("Не удалось открыть страницу списка.", show_alert=True)
@@ -330,7 +338,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await callback.answer("Страница вне диапазона.", show_alert=True)
             return
 
-        await _show_list_page(callback, session_factory, list_kind=list_kind, page=page)
+        await _show_list_page(callback, session_factory, state=state, list_kind=list_kind, page=page)
 
     @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_VIEW_PREFIX))
     async def entry_view(callback: CallbackQuery, state: FSMContext) -> None:
@@ -339,6 +347,9 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await callback.answer("Не удалось открыть запись.", show_alert=True)
             return
         entry_id, entry_back_callback = parsed
+        if entry_back_callback is None:
+            state_data = await state.get_data()
+            entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
         back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
         await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
 
@@ -356,6 +367,118 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             build_entry_detail_keyboard(
                 str(detail.entry_id),
                 _allowed_target_statuses(detail.status_name),
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_STATUS_MENU_PREFIX))
+    async def entry_status_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_STATUS_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть выбор статуса.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await _show_screen(
+            callback,
+            _render_entry_detail_screen(detail) + "\n\nВыберите новый статус:",
+            build_entry_status_picker_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_DELETE_PREFIX))
+    async def entry_delete_start(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_DELETE_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось выбрать запись для удаления.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await _show_screen(
+            callback,
+            "Подтвердите удаление записи.\n"
+            f"ID: `{detail.entry_id}`\n"
+            f"Заголовок: {detail.title}\n\n"
+            "Действие необратимо.",
+            build_entry_delete_confirm_keyboard(
+                str(detail.entry_id),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_DELETE_CONFIRM_PREFIX))
+    async def entry_delete_confirm(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_DELETE_CONFIRM_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось прочитать подтверждение удаления.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        _, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+            if detail is None:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+
+            service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            try:
+                await service.delete(entry_id)
+            except EntryNotFoundError:
+                await callback.answer("Запись уже удалена.", show_alert=True)
+                return
+
+        redirected = await _return_to_list_after_entry_delete(
+            callback,
+            session_factory,
+            state=state,
+            back_callback=back_callback,
+        )
+        if redirected:
+            return
+
+        await _show_screen(
+            callback,
+            "Запись удалена.\n"
+            f"ID: `{entry_id}`\n"
+            f"Заголовок: {detail.title}",
+            build_post_entry_delete_keyboard(
                 back_callback=back_callback,
                 back_text=back_text,
             ),
@@ -485,6 +608,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await _show_topic_entries_page(
                 callback,
                 session_factory,
+                state=state,
                 topic=topic,
                 topic_id=topic_id,
                 page=0,
@@ -526,9 +650,44 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await _show_topic_entries_page(
             callback,
             session_factory,
+            state=state,
             topic=topic,
             topic_id=topic_id,
             page=page,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_ENTRY_PREVIEW_PREFIX))
+    async def topic_entry_preview(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, TOPIC_ENTRY_PREVIEW_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть предпросмотр.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
+        back_callback, back_text = _resolve_entry_back_action(entry_back_callback)
+        if back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+            back_text = "Назад к записям"
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
+
+        await _show_screen(
+            callback,
+            _render_entry_preview_screen(detail),
+            build_entry_preview_keyboard(
+                str(detail.entry_id),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
         )
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_QUICK_ENTRY_PREFIX))
@@ -541,7 +700,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         state_data = await state.get_data()
         topic_id = _parse_uuid_string(state_data.get("topic_view_id"))
         back_callback = MENU_TOPICS
-        back_text = "К темам"
+        back_text = "Назад к списку тем"
         if topic_id is not None:
             back_callback = f"{TOPIC_VIEW_PREFIX}{topic_id}"
             back_text = "Назад к теме"
@@ -1145,9 +1304,14 @@ async def _show_list_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
     *,
+    state: FSMContext | None = None,
     list_kind: str,
     page: int,
 ) -> None:
+    if state is not None:
+        await state.update_data(
+            list_entries_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+        )
     status_name, title = _get_list_kind_config(list_kind)
     items, has_next_page = await _load_entries(
         session_factory,
@@ -1195,10 +1359,17 @@ async def _show_topic_entries_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
     *,
+    state: FSMContext | None = None,
     topic: TopicDTO,
     topic_id,
     page: int,
 ) -> None:
+    if state is not None:
+        await state.update_data(
+            topic_view_id=str(topic_id),
+            topic_entries_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
+        )
+    back_callback, back_text = _resolve_topic_entries_back_action(topic)
     rows, has_next_page = await _load_topic_entries(
         session_factory,
         topic_id=topic_id,
@@ -1214,15 +1385,68 @@ async def _show_topic_entries_page(
         ),
         build_entry_results_keyboard(
             rows,
-            back_callback=f"{TOPIC_VIEW_PREFIX}{topic_id}",
-            back_text="Назад к теме",
+            back_callback=back_callback,
+            back_text=back_text,
             page=page,
             has_prev_page=page > 0,
             has_next_page=has_next_page,
             page_callback_prefix=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:",
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
+            preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
         ),
     )
+
+
+async def _return_to_list_after_entry_delete(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    state: FSMContext,
+    back_callback: str,
+) -> bool:
+    if back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+        parsed = _parse_topic_entries_page_callback(back_callback)
+        if parsed is None:
+            return False
+        topic_id, page = parsed
+        if page < 0:
+            return False
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session))
+            topics = await topic_service.list_tree()
+
+        topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
+        if topic is None:
+            return False
+
+        await _show_topic_entries_page(
+            callback,
+            session_factory,
+            state=state,
+            topic=topic,
+            topic_id=topic_id,
+            page=page,
+        )
+        return True
+
+    if back_callback.startswith(LIST_PAGE_PREFIX):
+        parsed = _parse_list_page_callback(back_callback)
+        if parsed is None:
+            return False
+        list_kind, page = parsed
+        if page < 0:
+            return False
+        await _show_list_page(
+            callback,
+            session_factory,
+            state=state,
+            list_kind=list_kind,
+            page=page,
+        )
+        return True
+
+    return False
 
 
 async def _show_collections_page(
@@ -1267,7 +1491,12 @@ async def _show_screen(
     except TelegramBadRequest as exc:
         error_text = str(exc).lower()
         if "message is not modified" in error_text:
-            await callback.message.edit_reply_markup(reply_markup=markup)
+            current_text = (callback.message.text or "").strip()
+            target_text = text.strip()
+            if current_text == target_text:
+                await callback.message.edit_reply_markup(reply_markup=markup)
+                return
+            await callback.message.answer(text, reply_markup=markup)
             return
         await callback.message.answer(text, reply_markup=markup)
 
@@ -1335,6 +1564,9 @@ def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int
             "- добавить новую запись через меню."
         )
 
+    if title.startswith("Записи темы:"):
+        return f"{header}:\nВыберите запись кнопкой ниже."
+
     lines = [header + ":"]
     for item in items:
         lines.append(f"- {item.title} [{item.status_name}] ({item.topic_name})")
@@ -1381,6 +1613,7 @@ def _render_search_results_screen(items: list, query: str, *, page: int = 0) -> 
 
 
 def _render_entry_detail_screen(detail: EntryDetail) -> str:
+    compact_notes = _render_compact_card_notes(detail.notes)
     return (
         "Карточка записи:\n"
         f"ID: `{detail.entry_id}`\n"
@@ -1388,7 +1621,21 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
         f"Статус: {detail.status_name}\n"
         f"Тема: {detail.topic_name}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
-        f"Заметки: {detail.notes or '-'}"
+        f"Заметки: {compact_notes}"
+    )
+
+
+def _render_entry_preview_screen(detail: EntryDetail) -> str:
+    link = detail.normalized_url or detail.original_url or "-"
+    description = _render_preview_block(detail.description)
+    notes = _render_preview_block(detail.notes)
+    return (
+        "Быстрый просмотр:\n"
+        f"Заголовок: {detail.title}\n"
+        f"Тема: {detail.topic_name}\n"
+        f"URL: {link}\n\n"
+        f"Описание:\n{description}\n\n"
+        f"Заметки:\n{notes}"
     )
 
 
@@ -1544,6 +1791,12 @@ def _get_list_kind_config(list_kind: str):
     return mapping.get(list_kind, (None, "Последние записи"))
 
 
+def _resolve_topic_entries_back_action(topic: TopicDTO) -> tuple[str, str]:
+    if topic.full_path == "to_read":
+        return MENU_TOPICS, "Назад к списку тем"
+    return f"{TOPIC_VIEW_PREFIX}{topic.id}", "Назад к теме"
+
+
 def _resolve_entry_back_action(entry_back_callback: str | None):
     if not entry_back_callback:
         return MENU_LIST, "Назад к фильтрам"
@@ -1552,14 +1805,45 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
     if entry_back_callback.startswith(SEARCH_PAGE_PREFIX):
         return entry_back_callback, "Назад к поиску"
     if entry_back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
-        return entry_back_callback, "Назад к теме"
+        return entry_back_callback, "Назад к записям"
     if entry_back_callback.startswith(TOPIC_VIEW_PREFIX):
         return entry_back_callback, "Назад к теме"
+    if entry_back_callback == MENU_TOPICS:
+        return MENU_TOPICS, "Назад к списку тем"
     if entry_back_callback == MENU_COLLECTIONS:
         return MENU_COLLECTIONS, "К коллекциям"
     if entry_back_callback == MENU_LIST:
         return MENU_LIST, "Назад к фильтрам"
     return MENU_LIST, "Назад к фильтрам"
+
+
+def _resolve_entry_action_back_context(state_data: dict) -> tuple[str | None, str, str]:
+    raw_back_callback = state_data.get("entry_back_callback")
+    if isinstance(raw_back_callback, str) and raw_back_callback.strip():
+        back_callback, back_text = _resolve_entry_back_action(raw_back_callback)
+        stored_back_text = state_data.get("entry_back_text")
+        if isinstance(stored_back_text, str) and stored_back_text.strip():
+            back_text = stored_back_text.strip()
+        return raw_back_callback, back_callback, back_text
+
+    inferred_back_callback = _resolve_entry_back_callback_from_state(state_data)
+    back_callback, back_text = _resolve_entry_back_action(inferred_back_callback)
+    return inferred_back_callback, back_callback, back_text
+
+
+def _resolve_entry_back_callback_from_state(state_data: dict) -> str | None:
+    topic_entries_callback = state_data.get("topic_entries_back_callback")
+    if isinstance(topic_entries_callback, str) and topic_entries_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+        return topic_entries_callback
+
+    list_entries_callback = state_data.get("list_entries_back_callback")
+    if isinstance(list_entries_callback, str) and list_entries_callback.startswith(LIST_PAGE_PREFIX):
+        return list_entries_callback
+
+    topic_id = _parse_uuid_string(state_data.get("topic_view_id"))
+    if topic_id is not None:
+        return f"{TOPIC_VIEW_PREFIX}{topic_id}"
+    return None
 
 
 def _resolve_status_back_action(state_data: dict):
@@ -1579,3 +1863,26 @@ def _parse_uuid_string(raw: str | None):
         return uuid.UUID(raw)
     except ValueError:
         return None
+
+
+def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
+    if not value:
+        return "-"
+    compact = value.strip()
+    if not compact:
+        return "-"
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _render_compact_card_notes(value: str | None, *, limit: int = 260) -> str:
+    if not value:
+        return "-"
+    # Keep the card scannable: notes can be very long for forwarded posts.
+    compact = " ".join(value.split())
+    if not compact:
+        return "-"
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"

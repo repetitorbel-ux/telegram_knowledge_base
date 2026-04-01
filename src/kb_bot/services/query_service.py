@@ -13,6 +13,7 @@ class EntryDetail:
     original_url: str | None
     normalized_url: str | None
     notes: str | None
+    description: str | None = None
 
 
 class QueryService:
@@ -32,6 +33,7 @@ class QueryService:
             original_url=entry.original_url,
             normalized_url=entry.normalized_url,
             notes=entry.notes,
+            description=entry.description,
         )
 
     async def list_entries(
@@ -56,6 +58,7 @@ class QueryService:
                 original_url=entry.original_url,
                 normalized_url=entry.normalized_url,
                 notes=entry.notes,
+                description=entry.description,
             )
             for entry, status, topic_name in rows
         ]

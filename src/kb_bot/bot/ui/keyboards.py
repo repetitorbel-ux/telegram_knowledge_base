@@ -6,6 +6,9 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_EXEC_PREFIX,
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
+    ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_ALL,
@@ -34,7 +37,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPICS,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
-    TOPIC_QUICK_ENTRY_PREFIX,
+    TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -134,12 +137,24 @@ def build_entry_results_keyboard(
     has_next_page: bool = False,
     page_callback_prefix: str | None = None,
     entry_back_callback: str | None = None,
+    preview_callback_prefix: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows = []
     for item in items:
         entry_id = _extract_entry_id(item)
         if entry_id is None:
             continue
+        if preview_callback_prefix:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=_render_entry_button_label(item),
+                        callback_data=f"{preview_callback_prefix}{entry_id}",
+                    ),
+                ]
+            )
+            continue
+
         rows.append(
             [
                 InlineKeyboardButton(
@@ -186,21 +201,123 @@ def build_entry_detail_keyboard(
 ) -> InlineKeyboardMarkup:
     rows = []
     if allowed_statuses:
-        for status_name in allowed_statuses:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=f"Статус: {status_name}",
-                        callback_data=f"{ENTRY_STATUS_PREFIX}{entry_id}:{status_name}",
-                    )
-                ]
-            )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Изменить статус",
+                    callback_data=f"{ENTRY_STATUS_MENU_PREFIX}{entry_id}",
+                )
+            ]
+        )
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
     if back_callback and back_text:
         rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_status_picker_keyboard(
+    entry_id: str,
+    allowed_statuses: list[str],
+    *,
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for status_name in allowed_statuses:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Статус: {status_name}",
+                    callback_data=f"{ENTRY_STATUS_PREFIX}{entry_id}:{status_name}",
+                )
+            ]
+        )
+
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="Назад к карточке",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+            )
+        ]
+    )
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_delete_confirm_keyboard(
+    entry_id: str,
+    *,
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="Подтвердить удаление",
+                callback_data=f"{ENTRY_DELETE_CONFIRM_PREFIX}{entry_id}",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Отмена",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+            )
+        ],
+    ]
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_post_entry_delete_keyboard(
+    *,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_preview_keyboard(
+    entry_id: str,
+    *,
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="Открыть карточку",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+            ),
+            InlineKeyboardButton(
+                text="Удалить запись",
+                callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
+            ),
+        ]
+    ]
+    if back_callback and back_text:
+        rows.append(
+            [
+                InlineKeyboardButton(text=back_text, callback_data=back_callback),
+                InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+            ]
+        )
+    else:
+        rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -280,8 +397,8 @@ def build_topic_detail_keyboard(
                 [
                     InlineKeyboardButton(
                         text=_render_entry_button_label(entry),
-                        callback_data=f"{TOPIC_QUICK_ENTRY_PREFIX}{entry.entry_id}",
-                    )
+                        callback_data=f"{TOPIC_ENTRY_PREVIEW_PREFIX}{entry.entry_id}",
+                    ),
                 ]
             )
 
@@ -291,7 +408,7 @@ def build_topic_detail_keyboard(
             [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
             [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="К темам", callback_data=MENU_TOPICS)],
+            [InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS)],
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]
     )
@@ -308,7 +425,7 @@ def build_topic_delete_confirm_keyboard(topic_id: str) -> InlineKeyboardMarkup:
                 )
             ],
             [InlineKeyboardButton(text="Отмена", callback_data=f"{TOPIC_VIEW_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="К темам", callback_data=MENU_TOPICS)],
+            [InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS)],
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]
     )

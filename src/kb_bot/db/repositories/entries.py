@@ -23,6 +23,15 @@ class EntriesRepository:
         await self.session.refresh(entry)
         return entry
 
+    async def get(self, entry_id: uuid.UUID) -> KnowledgeEntry | None:
+        stmt = select(KnowledgeEntry).where(KnowledgeEntry.id == entry_id).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def delete(self, entry: KnowledgeEntry) -> None:
+        await self.session.delete(entry)
+        await self.session.flush()
+
     async def search(
         self,
         query: str,

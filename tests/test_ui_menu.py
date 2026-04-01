@@ -11,18 +11,22 @@ from kb_bot.bot.handlers.menu import (
     _parse_topic_entries_page_callback,
     _parse_page_callback,
     _parse_status_update_callback,
+    _resolve_entry_action_back_context,
     _resolve_entry_back_action,
+    _resolve_entry_back_callback_from_state,
     _resolve_status_back_action,
     _format_restore_failure_message,
     _format_restore_progress_checkpoint,
     _render_backups_list_screen,
     _render_collection_result_screen,
     _render_entry_detail_screen,
+    _render_entry_preview_screen,
     _render_entry_list_screen,
     _render_search_results_screen,
     _render_stats_screen,
     _render_topic_detail_screen,
     _render_topics_screen,
+    _resolve_topic_entries_back_action,
 )
 from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
@@ -32,6 +36,9 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
+    ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
     LIST_NEW,
@@ -59,7 +66,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
-    TOPIC_QUICK_ENTRY_PREFIX,
+    TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -69,8 +76,12 @@ from kb_bot.bot.ui.keyboards import (
     build_add_topic_picker_keyboard,
     build_backups_keyboard,
     build_collections_keyboard,
+    build_entry_delete_confirm_keyboard,
     build_entry_detail_keyboard,
+    build_post_entry_delete_keyboard,
+    build_entry_preview_keyboard,
     build_entry_results_keyboard,
+    build_entry_status_picker_keyboard,
     build_flow_navigation_keyboard,
     build_import_export_keyboard,
     build_list_filters_keyboard,
@@ -212,6 +223,24 @@ def test_render_entry_list_screen_contains_titles() -> None:
     assert "Example title [New] (Python)" in text
 
 
+def test_render_topic_entries_list_screen_uses_compact_header() -> None:
+    items = [
+        EntryDetail(
+            entry_id="ignored",
+            title="Example title",
+            status_name="New",
+            topic_name="To Read",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    text = _render_entry_list_screen(items, "Записи темы: To Read")
+    assert "Записи темы: To Read:" in text
+    assert "Выберите запись кнопкой ниже." in text
+    assert "Example title [New]" not in text
+
+
 def test_render_entry_list_screen_empty_contains_next_steps() -> None:
     text = _render_entry_list_screen([], "Статус Verified", page=0)
     assert "Записей не найдено." in text
@@ -296,15 +325,105 @@ def test_entry_results_keyboard_contains_entry_back_context() -> None:
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
 
 
-def test_entry_detail_keyboard_contains_status_actions() -> None:
+def test_entry_results_keyboard_contains_topic_preview_callback() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 1
+
+
+def test_entry_results_keyboard_does_not_contain_inline_delete_callback() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(items, preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX)
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 1
+
+
+def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
+    keyboard = build_entry_preview_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_text="Назад к списку",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 2
+    assert len(keyboard.inline_keyboard[1]) == 2
+
+
+def test_entry_detail_keyboard_contains_change_status_action() -> None:
     keyboard = build_entry_detail_keyboard(
         "11111111-1111-1111-1111-111111111111",
         ["To Read", "Important"],
         include_back_to_list=True,
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+
+
+def test_entry_status_picker_keyboard_contains_status_actions() -> None:
+    keyboard = build_entry_status_picker_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        ["To Read", "Important"],
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:To Read" in callbacks
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:Important" in callbacks
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+
+
+def test_entry_delete_confirm_keyboard_contains_confirm_and_cancel_actions() -> None:
+    keyboard = build_entry_delete_confirm_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_text="Назад к списку",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_DELETE_CONFIRM_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
+
+
+def test_post_entry_delete_keyboard_contains_back_and_main() -> None:
+    keyboard = build_post_entry_delete_keyboard(
+        back_callback=MENU_TOPICS,
+        back_text="Назад к списку тем",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_TOPICS in callbacks
+    assert MENU_MAIN in callbacks
 
 
 def test_render_search_results_screen_prompts_selection() -> None:
@@ -335,6 +454,43 @@ def test_render_entry_detail_screen_contains_fields() -> None:
     assert "Статус:" in text
     assert "Entry title" in text
     assert "Python" in text
+
+
+def test_render_entry_detail_screen_compacts_long_notes() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="To Read",
+        topic_name="To Read",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="line one\nline two\n" + ("very long body " * 80),
+    )
+    text = _render_entry_detail_screen(detail)
+    assert "Карточка записи:" in text
+    assert "Заметки: line one line two" in text
+    assert "… " not in text
+    assert "…" in text
+    assert len(text) < 700
+
+
+def test_render_entry_preview_screen_contains_description_and_notes() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="notes body",
+        description="description body",
+    )
+    text = _render_entry_preview_screen(detail)
+    assert "Быстрый просмотр" in text
+    assert "Описание:" in text
+    assert "description body" in text
+    assert "Заметки:" in text
+    assert "notes body" in text
 
 
 def test_allowed_target_statuses_follow_status_machine() -> None:
@@ -426,13 +582,43 @@ def test_resolve_entry_back_action_for_topic_entries_page() -> None:
         f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
     )
     assert callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
-    assert text == "Назад к теме"
+    assert text == "Назад к записям"
 
 
 def test_resolve_entry_back_action_for_topic_view_page() -> None:
     callback, text = _resolve_entry_back_action(
         f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
     )
+    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+    assert text == "Назад к теме"
+
+
+def test_resolve_entry_back_action_for_topics_menu() -> None:
+    callback, text = _resolve_entry_back_action(MENU_TOPICS)
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
+
+
+def test_resolve_topic_entries_back_action_for_to_read_topic() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="To Read",
+        full_path="to_read",
+        level=0,
+    )
+    callback, text = _resolve_topic_entries_back_action(topic)
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
+
+
+def test_resolve_topic_entries_back_action_for_regular_topic() -> None:
+    topic = TopicDTO(
+        id="11111111-1111-1111-1111-111111111111",
+        name="Python",
+        full_path="Programming.Python",
+        level=1,
+    )
+    callback, text = _resolve_topic_entries_back_action(topic)
     assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
     assert text == "Назад к теме"
 
@@ -453,6 +639,48 @@ def test_resolve_entry_back_action_for_unknown_callback_fallbacks_to_filters() -
     callback, text = _resolve_entry_back_action("unexpected:callback")
     assert callback == MENU_LIST
     assert text == "Назад к фильтрам"
+
+
+def test_resolve_entry_back_callback_from_state_prefers_topic_entries_page() -> None:
+    callback = _resolve_entry_back_callback_from_state(
+        {"topic_entries_back_callback": f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"}
+    )
+    assert callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
+
+
+def test_resolve_entry_back_callback_from_state_falls_back_to_topic_view() -> None:
+    callback = _resolve_entry_back_callback_from_state(
+        {"topic_view_id": "11111111-1111-1111-1111-111111111111"}
+    )
+    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+
+
+def test_resolve_entry_back_callback_from_state_uses_list_page_context() -> None:
+    callback = _resolve_entry_back_callback_from_state(
+        {"list_entries_back_callback": f"{LIST_PAGE_PREFIX}new:3"}
+    )
+    assert callback == f"{LIST_PAGE_PREFIX}new:3"
+
+
+def test_resolve_entry_action_back_context_uses_entry_back_text_override() -> None:
+    raw_callback, callback, text = _resolve_entry_action_back_context(
+        {
+            "entry_back_callback": f"{SEARCH_PAGE_PREFIX}1",
+            "entry_back_text": "Назад в результаты",
+        }
+    )
+    assert raw_callback == f"{SEARCH_PAGE_PREFIX}1"
+    assert callback == f"{SEARCH_PAGE_PREFIX}1"
+    assert text == "Назад в результаты"
+
+
+def test_resolve_entry_action_back_context_falls_back_to_state_inference() -> None:
+    raw_callback, callback, text = _resolve_entry_action_back_context(
+        {"topic_entries_back_callback": f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0"}
+    )
+    assert raw_callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0"
+    assert callback == raw_callback
+    assert text == "Назад к записям"
 
 
 def test_resolve_status_back_action_uses_state_stored_text_override() -> None:
@@ -558,7 +786,7 @@ def test_topic_detail_keyboard_contains_quick_entry_buttons() -> None:
         quick_entries=entries,
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert f"{TOPIC_QUICK_ENTRY_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
 
 
 def test_topic_delete_confirm_keyboard_contains_confirm_and_cancel() -> None:
