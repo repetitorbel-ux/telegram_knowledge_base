@@ -55,22 +55,15 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
                 status_code="TO_READ",
             )
             try:
-                entry = await service.create_manual(payload)
+                await service.create_manual(payload)
             except DuplicateEntryError:
-                await message.answer("Forward already saved (duplicate).")
+                await _try_delete_forward_message(message)
                 return
             except TopicNotFoundError:
                 await message.answer("Topic validation failed.")
                 return
 
-        await message.answer(
-            f"Forward saved:\n"
-            f"ID: `{entry.id}`\n"
-            f"Title: {entry.title}\n"
-            f"Topic: {default_topic.name}\n"
-            f"Status: {entry.status_name}\n"
-            f"URL: {entry.normalized_url or '-'}"
-        )
+        await _try_delete_forward_message(message)
 
     return router
 
@@ -103,3 +96,11 @@ async def _resolve_forward_topic(topics_repo: TopicsRepository, session) -> Topi
         return topic
 
     return await topics_repo.get_by_name("To Read")
+
+
+async def _try_delete_forward_message(message: Message) -> None:
+    try:
+        await message.delete()
+    except Exception:
+        # Best-effort cleanup: if Telegram refuses delete, keep flow silent anyway.
+        return

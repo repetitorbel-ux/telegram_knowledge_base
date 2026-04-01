@@ -11,6 +11,7 @@ from kb_bot.bot.handlers.menu import (
     _parse_topic_entries_page_callback,
     _parse_page_callback,
     _parse_status_update_callback,
+    _resolve_entry_action_back_context,
     _resolve_entry_back_action,
     _resolve_entry_back_callback_from_state,
     _resolve_status_back_action,
@@ -345,6 +346,25 @@ def test_entry_results_keyboard_contains_topic_preview_callback() -> None:
     assert len(keyboard.inline_keyboard[0]) == 1
 
 
+def test_entry_results_keyboard_does_not_contain_inline_delete_callback() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(items, preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX)
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 1
+
+
 def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     keyboard = build_entry_preview_keyboard(
         "11111111-1111-1111-1111-111111111111",
@@ -354,7 +374,10 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 2
+    assert len(keyboard.inline_keyboard[1]) == 2
 
 
 def test_entry_detail_keyboard_contains_change_status_action() -> None:
@@ -365,7 +388,7 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
-    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
 
 
 def test_entry_status_picker_keyboard_contains_status_actions() -> None:
@@ -630,6 +653,34 @@ def test_resolve_entry_back_callback_from_state_falls_back_to_topic_view() -> No
         {"topic_view_id": "11111111-1111-1111-1111-111111111111"}
     )
     assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
+
+
+def test_resolve_entry_back_callback_from_state_uses_list_page_context() -> None:
+    callback = _resolve_entry_back_callback_from_state(
+        {"list_entries_back_callback": f"{LIST_PAGE_PREFIX}new:3"}
+    )
+    assert callback == f"{LIST_PAGE_PREFIX}new:3"
+
+
+def test_resolve_entry_action_back_context_uses_entry_back_text_override() -> None:
+    raw_callback, callback, text = _resolve_entry_action_back_context(
+        {
+            "entry_back_callback": f"{SEARCH_PAGE_PREFIX}1",
+            "entry_back_text": "Назад в результаты",
+        }
+    )
+    assert raw_callback == f"{SEARCH_PAGE_PREFIX}1"
+    assert callback == f"{SEARCH_PAGE_PREFIX}1"
+    assert text == "Назад в результаты"
+
+
+def test_resolve_entry_action_back_context_falls_back_to_state_inference() -> None:
+    raw_callback, callback, text = _resolve_entry_action_back_context(
+        {"topic_entries_back_callback": f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0"}
+    )
+    assert raw_callback == f"{TOPIC_ENTRIES_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0"
+    assert callback == raw_callback
+    assert text == "Назад к записям"
 
 
 def test_resolve_status_back_action_uses_state_stored_text_override() -> None:

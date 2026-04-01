@@ -209,14 +209,6 @@ def build_entry_detail_keyboard(
                 )
             ]
         )
-    rows.append(
-        [
-            InlineKeyboardButton(
-                text="Удалить запись",
-                callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
-            )
-        ]
-    )
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
@@ -305,17 +297,27 @@ def build_entry_preview_keyboard(
     back_callback: str | None = None,
     back_text: str | None = None,
 ) -> InlineKeyboardMarkup:
-    rows = [
+    rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(
                 text="Открыть карточку",
                 callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
-            )
+            ),
+            InlineKeyboardButton(
+                text="Удалить запись",
+                callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
+            ),
         ]
     ]
     if back_callback and back_text:
-        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
-    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+        rows.append(
+            [
+                InlineKeyboardButton(text=back_text, callback_data=back_callback),
+                InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+            ]
+        )
+    else:
+        rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

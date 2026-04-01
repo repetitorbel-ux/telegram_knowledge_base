@@ -26,6 +26,7 @@ def _sanitize_sslkeylogfile() -> None:
 _sanitize_sslkeylogfile()
 
 from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 
 from kb_bot.bot.router import build_router
 from kb_bot.bot.handlers.start import render_restart_text
@@ -104,6 +105,7 @@ async def run_bot() -> None:
     session_factory = create_session_factory(engine)
 
     bot = Bot(token=settings.telegram_bot_token)
+    await _setup_chat_menu(bot, settings.telegram_allowed_user_id)
     dispatcher = Dispatcher()
     dispatcher.message.middleware(AllowlistMiddleware(settings.telegram_allowed_user_id))
     dispatcher.include_router(build_router(session_factory))
@@ -127,6 +129,36 @@ async def run_bot() -> None:
 
 def main() -> None:
     asyncio.run(run_bot())
+
+
+def _build_main_menu_commands() -> list[BotCommand]:
+    return [
+        BotCommand(command="start", description="Главное меню"),
+        BotCommand(command="add", description="Добавить запись"),
+        BotCommand(command="search", description="Поиск"),
+        BotCommand(command="list", description="Быстрые списки"),
+        BotCommand(command="topics", description="Темы"),
+        BotCommand(command="entry", description="Открыть карточку записи"),
+        BotCommand(command="entry_delete", description="Удалить запись по ID"),
+        BotCommand(command="status", description="Сменить статус"),
+        BotCommand(command="stats", description="Статистика"),
+        BotCommand(command="backups", description="Резервные копии"),
+    ]
+
+
+async def _setup_chat_menu(bot: Bot, chat_id: int) -> None:
+    logger = logging.getLogger(__name__)
+    try:
+        await bot.set_my_commands(
+            _build_main_menu_commands(),
+            scope=BotCommandScopeChat(chat_id=chat_id),
+        )
+        await bot.set_chat_menu_button(
+            chat_id=chat_id,
+            menu_button=MenuButtonCommands(),
+        )
+    except Exception:
+        logger.exception("chat_menu_setup_failed")
 
 
 if __name__ == "__main__":
