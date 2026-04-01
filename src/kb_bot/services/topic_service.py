@@ -56,6 +56,16 @@ class TopicService:
         topic = await self.topics_repo.get(topic_id)
         if topic is None:
             raise TopicNotFoundError("topic not found")
+        cleaned_name = new_name.strip()
+        if not cleaned_name:
+            raise ValueError("topic name is required")
+
+        # Keep routing topic identifiers stable for forward-save automation.
+        if topic.slug == "to_read":
+            topic.name = cleaned_name
+            await self.session.commit()
+            await self.session.refresh(topic)
+            return TopicDTO(id=topic.id, name=topic.name, full_path=topic.full_path, level=topic.level)
 
         parent_path = ""
         if topic.parent_topic_id is not None:
@@ -65,14 +75,14 @@ class TopicService:
             parent_path = parent.full_path
 
         old_prefix = topic.full_path
-        new_slug = slugify_topic_name(new_name)
+        new_slug = slugify_topic_name(cleaned_name)
         new_full_path = new_slug if not parent_path else f"{parent_path}.{new_slug}"
 
         existing = await self.topics_repo.get_by_full_path(new_full_path)
         if existing is not None and existing.id != topic.id:
             raise TopicConflictError("topic with this path already exists")
 
-        topic.name = new_name.strip()
+        topic.name = cleaned_name
         topic.slug = new_slug
         topic.full_path = new_full_path
         topic.full_path_ltree = new_full_path

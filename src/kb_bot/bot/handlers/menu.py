@@ -48,9 +48,11 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    TOPIC_ENTRIES_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
+    TOPIC_QUICK_ENTRY_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -459,26 +461,110 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             build_flow_navigation_keyboard(),
         )
 
-    @router.callback_query(F.data.startswith(TOPIC_VIEW_PREFIX))
-    async def topic_view(callback: CallbackQuery) -> None:
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_VIEW_PREFIX))
+    async def topic_view(callback: CallbackQuery, state: FSMContext) -> None:
         topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_VIEW_PREFIX)
         if topic_id is None:
             await callback.answer("Не удалось открыть тему.", show_alert=True)
             return
 
         async with session_factory() as session:
-            service = TopicService(TopicsRepository(session))
-            topics = await service.list_tree()
+            topic_service = TopicService(TopicsRepository(session))
+            query_service = QueryService(EntriesRepository(session))
+            topics = await topic_service.list_tree()
+            entries = await query_service.list_entries(topic_id=topic_id, limit=5, offset=0)
 
         topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
         if topic is None:
             await callback.answer("Тема не найдена.", show_alert=True)
             return
+        await state.update_data(topic_view_id=str(topic_id))
+
+        # To Read is a reading queue: open entries feed immediately.
+        if topic.full_path == "to_read":
+            await _show_topic_entries_page(
+                callback,
+                session_factory,
+                topic=topic,
+                topic_id=topic_id,
+                page=0,
+            )
+            return
 
         await _show_screen(
             callback,
-            _render_topic_detail_screen(topic),
-            build_topic_detail_keyboard(str(topic.id)),
+            _render_topic_detail_screen(topic, entries=entries),
+            build_topic_detail_keyboard(
+                str(topic.id),
+                topic_entries_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic.id}:0",
+                quick_entries=entries,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_ENTRIES_PAGE_PREFIX))
+    async def topic_entries_page(callback: CallbackQuery, state: FSMContext) -> None:
+        parsed = _parse_topic_entries_page_callback(callback.data)
+        if parsed is None:
+            await callback.answer("Не удалось открыть записи темы.", show_alert=True)
+            return
+
+        topic_id, page = parsed
+        if page < 0:
+            await callback.answer("Страница вне диапазона.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session))
+            topics = await topic_service.list_tree()
+
+        topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
+        if topic is None:
+            await callback.answer("Тема не найдена.", show_alert=True)
+            return
+        await state.update_data(topic_view_id=str(topic_id))
+
+        await _show_topic_entries_page(
+            callback,
+            session_factory,
+            topic=topic,
+            topic_id=topic_id,
+            page=page,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_QUICK_ENTRY_PREFIX))
+    async def topic_quick_entry_view(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, TOPIC_QUICK_ENTRY_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть запись.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        topic_id = _parse_uuid_string(state_data.get("topic_view_id"))
+        back_callback = MENU_TOPICS
+        back_text = "К темам"
+        if topic_id is not None:
+            back_callback = f"{TOPIC_VIEW_PREFIX}{topic_id}"
+            back_text = "Назад к теме"
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
+
+        await _show_screen(
+            callback,
+            _render_entry_detail_screen(detail),
+            build_entry_detail_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
         )
 
     @router.callback_query(F.data.startswith(TOPIC_RENAME_PREFIX))
@@ -1003,6 +1089,25 @@ async def _load_search_results(
     return rows[:page_size], has_next_page
 
 
+async def _load_topic_entries(
+    session_factory: async_sessionmaker,
+    *,
+    topic_id,
+    page: int,
+    page_size: int = PAGE_SIZE,
+) -> tuple[list[EntryDetail], bool]:
+    if page < 0:
+        return [], False
+
+    offset = page * page_size
+    async with session_factory() as session:
+        service = QueryService(EntriesRepository(session))
+        rows = await service.list_entries(topic_id=topic_id, limit=page_size + 1, offset=offset)
+
+    has_next_page = len(rows) > page_size
+    return rows[:page_size], has_next_page
+
+
 def _paginate_rows(rows: list, *, page: int, page_size: int) -> tuple[list, bool]:
     if page < 0:
         return [], False
@@ -1050,6 +1155,20 @@ async def _show_list_page(
         page=page,
         page_size=PAGE_SIZE,
     )
+    await _show_screen(
+        callback,
+        _render_entry_list_screen(items, title, page=page),
+        build_entry_results_keyboard(
+            items,
+            back_callback=MENU_LIST,
+            back_text="Назад к фильтрам",
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=f"{LIST_PAGE_PREFIX}{list_kind}:",
+            entry_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+        ),
+    )
 
 
 async def _show_topics_page(
@@ -1068,6 +1187,40 @@ async def _show_topics_page(
             has_prev_page=page > 0,
             has_next_page=has_next_page,
             page_callback_prefix=TOPICS_PAGE_PREFIX,
+        ),
+    )
+
+
+async def _show_topic_entries_page(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    topic: TopicDTO,
+    topic_id,
+    page: int,
+) -> None:
+    rows, has_next_page = await _load_topic_entries(
+        session_factory,
+        topic_id=topic_id,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    await _show_screen(
+        callback,
+        _render_entry_list_screen(
+            rows,
+            f"Записи темы: {topic.name}",
+            page=page,
+        ),
+        build_entry_results_keyboard(
+            rows,
+            back_callback=f"{TOPIC_VIEW_PREFIX}{topic_id}",
+            back_text="Назад к теме",
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:",
+            entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
         ),
     )
 
@@ -1092,20 +1245,6 @@ async def _show_collections_page(
             has_prev_page=page > 0,
             has_next_page=has_next_page,
             page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
-        ),
-    )
-    await _show_screen(
-        callback,
-        _render_entry_list_screen(items, title, page=page),
-        build_entry_results_keyboard(
-            items,
-            back_callback=MENU_LIST,
-            back_text="Назад к фильтрам",
-            page=page,
-            has_prev_page=page > 0,
-            has_next_page=has_next_page,
-            page_callback_prefix=f"{LIST_PAGE_PREFIX}{list_kind}:",
-            entry_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
         ),
     )
 
@@ -1161,14 +1300,27 @@ def _render_topics_screen(topics: list[TopicDTO]) -> str:
     return "Темы:\n" + "\n".join(lines)
 
 
-def _render_topic_detail_screen(topic: TopicDTO) -> str:
-    return (
+def _render_topic_detail_screen(topic: TopicDTO, entries: list[EntryDetail] | None = None) -> str:
+    header = (
         "Карточка темы:\n"
         f"ID: `{topic.id}`\n"
         f"Название: {topic.name}\n"
         f"Путь: {topic.full_path}\n"
         f"Уровень: {topic.level}"
     )
+    if entries is None:
+        return header
+
+    if not entries:
+        return header + "\n\nПоследние записи в теме:\n- Пока пусто."
+
+    lines: list[str] = []
+    for item in entries:
+        lines.append(f"- {item.title} [{item.status_name}]")
+        link = item.normalized_url or item.original_url
+        if link:
+            lines.append(f"  Ссылка: {link}")
+    return header + "\n\nПоследние записи в теме:\n" + "\n".join(lines)
 
 
 def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int = 0) -> str:
@@ -1353,6 +1505,25 @@ def _parse_list_page_callback(raw: str | None):
     return list_kind, page
 
 
+def _parse_topic_entries_page_callback(raw: str | None):
+    import uuid
+
+    if not raw or not raw.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+        return None
+
+    payload = raw[len(TOPIC_ENTRIES_PAGE_PREFIX) :]
+    topic_part, separator, page_raw = payload.partition(":")
+    if not separator:
+        return None
+
+    try:
+        topic_id = uuid.UUID(topic_part)
+        page = int(page_raw)
+    except ValueError:
+        return None
+    return topic_id, page
+
+
 def _parse_page_callback(raw: str | None, prefix: str):
     if not raw or not raw.startswith(prefix):
         return None
@@ -1380,6 +1551,10 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
         return entry_back_callback, "Назад к списку"
     if entry_back_callback.startswith(SEARCH_PAGE_PREFIX):
         return entry_back_callback, "Назад к поиску"
+    if entry_back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
+        return entry_back_callback, "Назад к теме"
+    if entry_back_callback.startswith(TOPIC_VIEW_PREFIX):
+        return entry_back_callback, "Назад к теме"
     if entry_back_callback == MENU_COLLECTIONS:
         return MENU_COLLECTIONS, "К коллекциям"
     if entry_back_callback == MENU_LIST:

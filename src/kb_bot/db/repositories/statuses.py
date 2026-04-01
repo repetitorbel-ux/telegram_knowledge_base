@@ -15,6 +15,11 @@ class StatusesRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_code(self, code: str) -> Status | None:
+        stmt = select(Status).where(Status.code == code).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_id(self, status_id: uuid.UUID) -> Status | None:
         stmt = select(Status).where(Status.id == status_id).limit(1)
         result = await self.session.execute(stmt)

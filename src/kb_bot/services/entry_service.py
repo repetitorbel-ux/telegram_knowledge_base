@@ -27,6 +27,7 @@ class CreateManualEntryPayload:
     original_url: str | None = None
     notes: str | None = None
     description: str | None = None
+    status_code: str | None = None
 
 
 class EntryService:
@@ -56,7 +57,13 @@ class EntryService:
         if await self.entries_repo.exists_by_dedup_hash(dedup_hash):
             raise DuplicateEntryError(dedup_hash)
 
-        status = await self.statuses_repo.get_by_display_name("New")
+        status = None
+        if payload.status_code:
+            status = await self.statuses_repo.get_by_code(payload.status_code)
+        if status is None:
+            status = await self.statuses_repo.get_by_code("NEW")
+        if status is None:
+            status = await self.statuses_repo.get_by_display_name("New")
         if status is None:
             raise RuntimeError("Default status 'New' is not seeded")
 

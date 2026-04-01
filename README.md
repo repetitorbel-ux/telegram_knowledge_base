@@ -15,7 +15,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/entry <entry_uuid>` (entry card/details)
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
   - `/topic_add` and `/topic_rename` for dynamic topic tree edits, including nested subtopics
-  - Forward message auto-save to default topic `Useful Channels`
+  - Forward message auto-save to topic `To read` (slug-stable routing) with status `To Read`
   - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
   - CSV/JSON import via Telegram document (`/import`)
   - CSV/JSON export via `/export` with filters
