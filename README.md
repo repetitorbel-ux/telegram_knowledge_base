@@ -13,6 +13,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/search <query>` (search in title/description/notes)
   - `/status <entry_uuid> <status name>` with transition validation
   - `/entry <entry_uuid>` (entry card/details)
+  - `/entry_delete <entry_uuid>` (delete entry)
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
   - `/topic_add` and `/topic_rename` for dynamic topic tree edits, including nested subtopics
   - Forward message auto-save to topic `To read` (slug-stable routing) with status `To Read`

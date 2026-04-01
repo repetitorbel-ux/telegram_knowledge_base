@@ -35,6 +35,8 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -73,7 +75,9 @@ from kb_bot.bot.ui.keyboards import (
     build_add_topic_picker_keyboard,
     build_backups_keyboard,
     build_collections_keyboard,
+    build_entry_delete_confirm_keyboard,
     build_entry_detail_keyboard,
+    build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
     build_entry_status_picker_keyboard,
@@ -361,6 +365,7 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
 def test_entry_status_picker_keyboard_contains_status_actions() -> None:
@@ -373,6 +378,29 @@ def test_entry_status_picker_keyboard_contains_status_actions() -> None:
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:To Read" in callbacks
     assert f"{ENTRY_STATUS_PREFIX}11111111-1111-1111-1111-111111111111:Important" in callbacks
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+
+
+def test_entry_delete_confirm_keyboard_contains_confirm_and_cancel_actions() -> None:
+    keyboard = build_entry_delete_confirm_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_text="Назад к списку",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_DELETE_CONFIRM_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+    assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
+
+
+def test_post_entry_delete_keyboard_contains_back_and_main() -> None:
+    keyboard = build_post_entry_delete_keyboard(
+        back_callback=MENU_TOPICS,
+        back_text="Назад к списку тем",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert MENU_TOPICS in callbacks
+    assert MENU_MAIN in callbacks
 
 
 def test_render_search_results_screen_prompts_selection() -> None:

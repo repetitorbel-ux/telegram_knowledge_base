@@ -22,6 +22,8 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTIONS_PAGE_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -67,6 +69,8 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_flow_navigation_keyboard,
     build_entry_detail_keyboard,
+    build_entry_delete_confirm_keyboard,
+    build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
     build_entry_status_picker_keyboard,
@@ -396,6 +400,81 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 str(detail.entry_id),
                 _allowed_target_statuses(detail.status_name),
                 entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_DELETE_PREFIX))
+    async def entry_delete_start(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_DELETE_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось выбрать запись для удаления.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback = state_data.get("entry_back_callback")
+        if not isinstance(entry_back_callback, str):
+            entry_back_callback = _resolve_entry_back_callback_from_state(state_data)
+        back_callback, back_text = _resolve_status_back_action(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await _show_screen(
+            callback,
+            "Подтвердите удаление записи.\n"
+            f"ID: `{detail.entry_id}`\n"
+            f"Заголовок: {detail.title}\n\n"
+            "Действие необратимо.",
+            build_entry_delete_confirm_keyboard(
+                str(detail.entry_id),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_DELETE_CONFIRM_PREFIX))
+    async def entry_delete_confirm(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_DELETE_CONFIRM_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось прочитать подтверждение удаления.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        back_callback, back_text = _resolve_status_back_action(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+            if detail is None:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+
+            service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            try:
+                await service.delete(entry_id)
+            except EntryNotFoundError:
+                await callback.answer("Запись уже удалена.", show_alert=True)
+                return
+
+        await _show_screen(
+            callback,
+            "Запись удалена.\n"
+            f"ID: `{entry_id}`\n"
+            f"Заголовок: {detail.title}",
+            build_post_entry_delete_keyboard(
                 back_callback=back_callback,
                 back_text=back_text,
             ),

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kb_bot.domain.errors import DuplicateEntryError, TopicNotFoundError
+from kb_bot.domain.errors import DuplicateEntryError, EntryNotFoundError, TopicNotFoundError
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 
 
@@ -112,3 +112,43 @@ def test_create_manual_with_explicit_status_code() -> None:
     assert result.status_name == "To Read"
     statuses_repo.get_by_code.assert_awaited_once_with("TO_READ")
     statuses_repo.get_by_display_name.assert_not_awaited()
+
+
+def test_delete_entry_success() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        exists_by_dedup_hash=AsyncMock(return_value=False),
+        create=AsyncMock(),
+        get=AsyncMock(return_value=types.SimpleNamespace(id=entry_id)),
+        delete=AsyncMock(),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    run_coroutine(service.delete(entry_id))
+
+    entries_repo.get.assert_awaited_once_with(entry_id)
+    entries_repo.delete.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+def test_delete_entry_not_found() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        exists_by_dedup_hash=AsyncMock(return_value=False),
+        create=AsyncMock(),
+        get=AsyncMock(return_value=None),
+        delete=AsyncMock(),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(EntryNotFoundError):
+        run_coroutine(service.delete(entry_id))
+
+    entries_repo.delete.assert_not_awaited()
+    session.commit.assert_not_awaited()

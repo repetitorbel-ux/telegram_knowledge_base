@@ -6,6 +6,8 @@ from kb_bot.bot.ui.callbacks import (
     BACKUP_RESTORE_EXEC_PREFIX,
     BACKUP_RESTORE_PICK_PREFIX,
     COLLECTION_VIEW_PREFIX,
+    ENTRY_DELETE_CONFIRM_PREFIX,
+    ENTRY_DELETE_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -207,6 +209,14 @@ def build_entry_detail_keyboard(
                 )
             ]
         )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="Удалить запись",
+                callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
+            )
+        ]
+    )
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
@@ -243,6 +253,45 @@ def build_entry_status_picker_keyboard(
             )
         ]
     )
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_delete_confirm_keyboard(
+    entry_id: str,
+    *,
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="Подтвердить удаление",
+                callback_data=f"{ENTRY_DELETE_CONFIRM_PREFIX}{entry_id}",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Отмена",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+            )
+        ],
+    ]
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_post_entry_delete_keyboard(
+    *,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
     if back_callback and back_text:
         rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
