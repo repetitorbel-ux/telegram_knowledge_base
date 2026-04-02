@@ -476,33 +476,51 @@ def build_topics_tree_keyboard(
     rows: list[list[InlineKeyboardButton]] = [
         [InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE)]
     ]
+    child_row_buffer: list[InlineKeyboardButton] = []
+
+    def _flush_child_row_buffer() -> None:
+        nonlocal child_row_buffer
+        if child_row_buffer:
+            rows.append(child_row_buffer)
+            child_row_buffer = []
 
     for topic, has_children, expanded in topic_rows:
         depth_indent = "  " * min(max(topic.level, 0), 4)
         if has_children:
+            _flush_child_row_buffer()
             toggle_icon = "▼" if expanded else "▶"
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"{depth_indent}{toggle_icon}",
+                        text=f"{depth_indent}{toggle_icon} {_render_topic_button_label(topic)}",
                         callback_data=f"{TOPIC_TOGGLE_PREFIX}{topic.id}",
-                    ),
-                    InlineKeyboardButton(
-                        text=_render_topic_button_label(topic),
-                        callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
                     ),
                 ]
             )
             continue
 
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{depth_indent}{_render_topic_button_label(topic)}",
-                    callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
-                )
-            ]
+        if topic.level <= 0:
+            _flush_child_row_buffer()
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                        callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
+                    )
+                ]
+            )
+            continue
+
+        child_row_buffer.append(
+            InlineKeyboardButton(
+                text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
+            )
         )
+        if len(child_row_buffer) == 3:
+            _flush_child_row_buffer()
+
+    _flush_child_row_buffer()
 
     if page_callback_prefix and (has_prev_page or has_next_page):
         pagination_row: list[InlineKeyboardButton] = []

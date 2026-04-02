@@ -850,8 +850,95 @@ def test_topics_tree_keyboard_contains_toggle_and_topic_callbacks() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPIC_TOGGLE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
-    assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_VIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert any("Neural Networks / AI" in label for label in labels)
+
+
+def test_topics_tree_keyboard_groups_subtopics_by_three_buttons_per_row() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            True,
+        ),
+        (
+            TopicDTO(id="22222222-2222-2222-2222-222222222222", name="A", full_path="p.a", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="33333333-3333-3333-3333-333333333333", name="B", full_path="p.b", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="44444444-4444-4444-4444-444444444444", name="C", full_path="p.c", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="55555555-5555-5555-5555-555555555555", name="D", full_path="p.d", level=1),
+            False,
+            False,
+        ),
+    ]
+
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        has_prev_page=False,
+        has_next_page=False,
+    )
+    topic_rows_only = [
+        row
+        for row in keyboard.inline_keyboard
+        if any((button.callback_data or "").startswith((TOPIC_TOGGLE_PREFIX, TOPIC_VIEW_PREFIX)) for button in row)
+    ]
+
+    # 1 row for parent + 2 rows for 4 subtopics (3 + 1).
+    assert len(topic_rows_only) == 3
+    assert len(topic_rows_only[0]) == 1
+    assert len(topic_rows_only[1]) == 3
+    assert len(topic_rows_only[2]) == 1
+
+
+def test_topics_tree_keyboard_keeps_l0_leaf_as_separate_button() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            True,
+        ),
+        (
+            TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Codex", full_path="p.codex", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(
+                id="33333333-3333-3333-3333-333333333333",
+                name="Soft_misc",
+                full_path="soft_misc",
+                level=0,
+            ),
+            False,
+            False,
+        ),
+    ]
+    keyboard = build_topics_tree_keyboard(topic_rows, page=0)
+    labels_by_row = [[button.text for button in row] for row in keyboard.inline_keyboard]
+    assert any("Soft_misc" in row[0] and len(row) == 1 for row in labels_by_row)
 
 
 def test_topics_tree_keyboard_contains_pagination_callbacks() -> None:
