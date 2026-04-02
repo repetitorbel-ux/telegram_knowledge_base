@@ -65,6 +65,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_DELETE_PREFIX,
     TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_QUICK_ENTRY_PREFIX,
+    TOPIC_TOGGLE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -88,7 +89,7 @@ from kb_bot.bot.ui.keyboards import (
     build_main_menu_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
-    build_topics_keyboard,
+    build_topics_tree_keyboard,
 )
 from kb_bot.core.config import get_settings
 from kb_bot.core.list_parsing import ListFilters
@@ -811,10 +812,11 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPICS)
     async def menu_topics(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await _show_topics_page(callback, session_factory, page=0)
+        await state.update_data(topics_expanded_paths=[], topics_page=0)
+        await _show_topics_page(callback, session_factory, state=state, page=0)
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPICS_PAGE_PREFIX))
-    async def topics_page(callback: CallbackQuery) -> None:
+    async def topics_page(callback: CallbackQuery, state: FSMContext) -> None:
         page = _parse_page_callback(callback.data, TOPICS_PAGE_PREFIX)
         if page is None:
             await callback.answer("Не удалось открыть страницу тем.", show_alert=True)
@@ -822,7 +824,36 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         if page < 0:
             await callback.answer("Страница вне диапазона.", show_alert=True)
             return
-        await _show_topics_page(callback, session_factory, page=page)
+        await state.update_data(topics_page=page)
+        await _show_topics_page(callback, session_factory, state=state, page=page)
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_TOGGLE_PREFIX))
+    async def topic_toggle(callback: CallbackQuery, state: FSMContext) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_TOGGLE_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось переключить ветку.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session))
+            topics = await topic_service.list_tree()
+
+        topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
+        if topic is None:
+            await callback.answer("Тема не найдена.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        expanded_paths = set(_coerce_str_list(state_data.get("topics_expanded_paths")))
+        if topic.full_path in expanded_paths:
+            expanded_paths.discard(topic.full_path)
+        else:
+            expanded_paths.add(topic.full_path)
+
+        page_raw = state_data.get("topics_page")
+        page = page_raw if isinstance(page_raw, int) and page_raw >= 0 else 0
+        await state.update_data(topics_expanded_paths=sorted(expanded_paths), topics_page=page)
+        await _show_topics_page(callback, session_factory, page=page, state=state)
 
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPIC_CREATE)
     async def menu_topic_create(callback: CallbackQuery, state: FSMContext) -> None:
@@ -1552,6 +1583,45 @@ async def _load_topics_page(
     return _paginate_rows(rows, page=page, page_size=page_size)
 
 
+async def _load_topics_tree_page(
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+    expanded_paths: set[str],
+    page_size: int = PAGE_SIZE,
+) -> tuple[list[tuple[TopicDTO, bool, bool]], bool]:
+    async with session_factory() as session:
+        service = TopicService(TopicsRepository(session))
+        topics = await service.list_tree()
+
+    roots = [item for item in topics if item.level == 0]
+    roots_page, has_next_page = _paginate_rows(roots, page=page, page_size=page_size)
+
+    parent_children: dict[str, list[TopicDTO]] = {}
+    for topic in topics:
+        parent_path = _topic_parent_path(topic.full_path)
+        if parent_path is None:
+            continue
+        parent_children.setdefault(parent_path, []).append(topic)
+
+    rows: list[tuple[TopicDTO, bool, bool]] = []
+
+    def _append_branch(current: TopicDTO) -> None:
+        children = parent_children.get(current.full_path, [])
+        has_children = bool(children)
+        is_expanded = current.full_path in expanded_paths
+        rows.append((current, has_children, is_expanded))
+        if not has_children or not is_expanded:
+            return
+        for child in children:
+            _append_branch(child)
+
+    for root_topic in roots_page:
+        _append_branch(root_topic)
+
+    return rows, has_next_page
+
+
 async def _load_collections_page(
     session_factory: async_sessionmaker,
     *,
@@ -1603,13 +1673,25 @@ async def _show_topics_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
     *,
+    state: FSMContext | None = None,
     page: int,
 ) -> None:
-    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
+    expanded_paths: set[str] = set()
+    if state is not None:
+        state_data = await state.get_data()
+        expanded_paths = set(_coerce_str_list(state_data.get("topics_expanded_paths")))
+        await state.update_data(topics_page=page)
+
+    items, has_next_page = await _load_topics_tree_page(
+        session_factory,
+        page=page,
+        expanded_paths=expanded_paths,
+        page_size=PAGE_SIZE,
+    )
     await _show_screen(
         callback,
         _render_topics_overview_screen(items, page=page),
-        build_topics_keyboard(
+        build_topics_tree_keyboard(
             items,
             page=page,
             has_prev_page=page > 0,
@@ -1975,8 +2057,13 @@ def _allowed_target_statuses(current_status: str) -> list[str]:
 
 
 async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
-    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
-    return build_topics_keyboard(
+    items, has_next_page = await _load_topics_tree_page(
+        session_factory,
+        page=page,
+        expanded_paths=set(),
+        page_size=PAGE_SIZE,
+    )
+    return build_topics_tree_keyboard(
         items,
         page=page,
         has_prev_page=page > 0,
@@ -1985,13 +2072,17 @@ async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *,
     )
 
 
-def _render_topics_overview_screen(topics: list[TopicDTO], *, page: int = 0) -> str:
+def _render_topics_overview_screen(topics: list[tuple[TopicDTO, bool, bool]], *, page: int = 0) -> str:
     if not topics and page == 0:
         return "Темы пока не найдены.\n\nМожно создать первую тему кнопкой ниже."
     if not topics:
         return "Темы:\nСтраница пуста. Вернитесь назад."
     page_hint = "" if page == 0 else f" (страница {page + 1})"
-    return f"Темы{page_hint}:\nВыберите тему кнопкой ниже или создайте новую."
+    return (
+        f"Темы{page_hint}:\n"
+        "Выберите тему кнопкой ниже.\n"
+        "Нажмите `▶/▼`, чтобы свернуть или развернуть подтемы."
+    )
 
 
 async def _build_collections_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
@@ -2189,6 +2280,19 @@ def _parse_uuid_string(raw: str | None):
         return uuid.UUID(raw)
     except ValueError:
         return None
+
+
+def _coerce_str_list(raw: object) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, str) and item.strip()]
+
+
+def _topic_parent_path(full_path: str) -> str | None:
+    if "." not in full_path:
+        return None
+    parent_path, _, _ = full_path.rpartition(".")
+    return parent_path or None
 
 
 async def _clear_entry_move_draft_state(state: FSMContext) -> None:

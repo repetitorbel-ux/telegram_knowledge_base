@@ -73,6 +73,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
     TOPIC_ENTRY_PREVIEW_PREFIX,
+    TOPIC_TOGGLE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -96,6 +97,7 @@ from kb_bot.bot.ui.keyboards import (
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
     build_topics_keyboard,
+    build_topics_tree_keyboard,
 )
 from kb_bot.domain.dto import TopicDTO
 from kb_bot.services.collection_service import SavedViewDTO
@@ -813,6 +815,63 @@ def test_topics_keyboard_contains_pagination_callbacks() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPICS_PAGE_PREFIX}0" in callbacks
     assert f"{TOPICS_PAGE_PREFIX}2" in callbacks
+
+
+def test_topics_tree_keyboard_contains_toggle_and_topic_callbacks() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            False,
+        ),
+        (
+            TopicDTO(
+                id="22222222-2222-2222-2222-222222222222",
+                name="Codex",
+                full_path="neural_networks_ai.codex",
+                level=1,
+            ),
+            False,
+            False,
+        ),
+    ]
+
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        has_prev_page=False,
+        has_next_page=False,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_TOGGLE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_VIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+
+
+def test_topics_tree_keyboard_contains_pagination_callbacks() -> None:
+    topic_rows = [
+        (
+            TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+            False,
+            False,
+        )
+    ]
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=2,
+        has_prev_page=True,
+        has_next_page=True,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPICS_PAGE_PREFIX}1" in callbacks
+    assert f"{TOPICS_PAGE_PREFIX}3" in callbacks
 
 
 def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> None:
