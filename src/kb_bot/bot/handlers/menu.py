@@ -1347,6 +1347,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/topics\n"
             "/topic_add <name>\n"
             "/topic_add \"<parent>\" -> <name>\n"
+            "/topic_move <topic_uuid|path|name> <target_parent_uuid|path|root>\n"
             "/topic_rename <topic_uuid> <new_name>\n"
             "/topic_delete <topic_uuid|full_path|name>\n"
             "/entry_move <entry_uuid> <topic_uuid>\n"

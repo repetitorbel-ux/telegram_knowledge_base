@@ -138,6 +138,7 @@ def _build_main_menu_commands() -> list[BotCommand]:
         BotCommand(command="search", description="Поиск"),
         BotCommand(command="list", description="Быстрые списки"),
         BotCommand(command="topics", description="Темы"),
+        BotCommand(command="topic_move", description="Переместить тему"),
         BotCommand(command="entry", description="Открыть карточку записи"),
         BotCommand(command="entry_move", description="Перенести запись в тему"),
         BotCommand(command="entry_delete", description="Удалить запись по ID"),

@@ -1,4 +1,9 @@
-from kb_bot.core.topic_parsing import parse_topic_add_command, parse_topic_delete_command, parse_topic_rename_command
+from kb_bot.core.topic_parsing import (
+    parse_topic_add_command,
+    parse_topic_delete_command,
+    parse_topic_move_command,
+    parse_topic_rename_command,
+)
 
 
 def test_parse_topic_add_root_mode() -> None:
@@ -45,3 +50,26 @@ def test_parse_topic_delete_selector_command() -> None:
     cmd = parse_topic_delete_command('/topic_delete "Neural Networks / AI.Codex"')
     assert cmd.topic_id is None
     assert cmd.topic_selector == "Neural Networks / AI.Codex"
+
+
+def test_parse_topic_move_uuid_to_root() -> None:
+    cmd = parse_topic_move_command("/topic_move 123e4567-e89b-12d3-a456-426614174000 root")
+    assert str(cmd.topic_id) == "123e4567-e89b-12d3-a456-426614174000"
+    assert cmd.move_to_root is True
+    assert cmd.target_parent_id is None
+    assert cmd.target_parent_selector is None
+
+
+def test_parse_topic_move_selector_arrow_to_selector() -> None:
+    cmd = parse_topic_move_command('/topic_move "neural_networks_ai.codex" -> "infrastructure.tools"')
+    assert cmd.topic_id is None
+    assert cmd.topic_selector == "neural_networks_ai.codex"
+    assert cmd.move_to_root is False
+    assert cmd.target_parent_id is None
+    assert cmd.target_parent_selector == "infrastructure.tools"
+
+
+def test_parse_topic_move_invalid() -> None:
+    cmd = parse_topic_move_command("/topic_move only_source")
+    assert cmd.topic_id is None
+    assert cmd.topic_selector is None
