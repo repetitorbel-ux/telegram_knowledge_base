@@ -89,6 +89,7 @@ from kb_bot.bot.ui.keyboards import (
     build_main_menu_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
+    build_topic_entries_actions_rows,
     build_topics_tree_keyboard,
 )
 from kb_bot.core.config import get_settings
@@ -1739,6 +1740,7 @@ async def _show_topic_entries_page(
             page_callback_prefix=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:",
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
             preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+            extra_rows=build_topic_entries_actions_rows(str(topic_id)),
         ),
     )
 

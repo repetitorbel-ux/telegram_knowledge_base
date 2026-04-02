@@ -96,6 +96,7 @@ from kb_bot.bot.ui.keyboards import (
     build_main_menu_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
+    build_topic_entries_actions_rows,
     build_topics_keyboard,
     build_topics_tree_keyboard,
 )
@@ -295,6 +296,25 @@ def test_entry_results_keyboard_contains_entry_buttons() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_MAIN in callbacks
+
+
+def test_entry_results_keyboard_supports_extra_rows() -> None:
+    items = []
+    extra_rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
+    keyboard = build_entry_results_keyboard(
+        items,
+        extra_rows=extra_rows,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_topic_entries_actions_rows_contains_manage_actions() -> None:
+    rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
+    callbacks = [button.callback_data for row in rows for button in row]
+    assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
 def test_entry_results_keyboard_contains_pagination_callbacks() -> None:

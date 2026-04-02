@@ -145,6 +145,7 @@ def build_entry_results_keyboard(
     page_callback_prefix: str | None = None,
     entry_back_callback: str | None = None,
     preview_callback_prefix: str | None = None,
+    extra_rows: list[list[InlineKeyboardButton]] | None = None,
 ) -> InlineKeyboardMarkup:
     rows = []
     for item in items:
@@ -190,6 +191,8 @@ def build_entry_results_keyboard(
         if pagination_row:
             rows.append(pagination_row)
 
+    if extra_rows:
+        rows.extend(extra_rows)
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
     if back_callback and back_text:
@@ -423,6 +426,14 @@ def build_entry_move_topic_keyboard(
     )
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_topic_entries_actions_rows(topic_id: str) -> list[list[InlineKeyboardButton]]:
+    return [
+        [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
+        [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
+        [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
+    ]
 
 
 def build_topics_keyboard(
