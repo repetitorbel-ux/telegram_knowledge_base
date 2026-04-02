@@ -28,7 +28,7 @@ from kb_bot.bot.handlers.menu import (
     _render_topics_screen,
     _resolve_topic_entries_back_action,
 )
-from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
+from kb_bot.bot.handlers.start import render_boot_text, render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
     BACKUP_RESTORE_ACK_PREFIX,
@@ -102,17 +102,19 @@ from kb_bot.services.collection_service import SavedViewDTO
 from kb_bot.services.query_service import EntryDetail
 
 
-def test_render_welcome_text_mentions_menu_and_commands() -> None:
+def test_render_welcome_text_is_short() -> None:
     text = render_welcome_text()
-    assert "кнопками меню" in text
-    assert "/add" in text
-    assert "/stats" in text
+    assert text == "Telegram KB Bot готов к работе."
 
 
-def test_render_restart_text_mentions_restart_behavior() -> None:
+def test_render_boot_text_is_short() -> None:
+    text = render_boot_text()
+    assert text == "Бот запущен и готов к работе."
+
+
+def test_render_restart_text_is_short() -> None:
     text = render_restart_text()
-    assert "перезапущен" in text
-    assert "/start" in text or "не нужно" in text
+    assert text == "Бот перезапущен и снова готов к работе."
 
 
 def test_main_menu_keyboard_contains_expected_actions() -> None:
