@@ -1,4 +1,5 @@
 import asyncio
+import html
 import re
 import subprocess
 

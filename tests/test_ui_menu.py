@@ -21,6 +21,7 @@ from kb_bot.bot.handlers.menu import (
     _render_collection_result_screen,
     _render_entry_detail_screen,
     _render_entry_preview_screen,
+    _render_entry_preview_screen_html,
     _render_entry_list_screen,
     _render_search_results_screen,
     _render_stats_screen,
@@ -582,6 +583,21 @@ def test_render_entry_preview_screen_returns_body_only() -> None:
     )
     text = _render_entry_preview_screen(detail)
     assert text == "description body"
+
+
+def test_render_entry_preview_screen_html_escapes_plain_text() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="1 < 2",
+        description=None,
+    )
+    text = _render_entry_preview_screen_html(detail)
+    assert text == "1 &lt; 2"
 
 
 def test_allowed_target_statuses_follow_status_machine() -> None:
