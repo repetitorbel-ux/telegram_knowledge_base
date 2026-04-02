@@ -7,6 +7,7 @@ import uuid
 from kb_bot.core.topic_parsing import (
     parse_topic_add_command,
     parse_topic_delete_command,
+    parse_topic_move_command,
     parse_topic_rename_command,
 )
 from kb_bot.db.repositories.topics import TopicsRepository
@@ -128,6 +129,69 @@ def create_topic_manage_router(session_factory: async_sessionmaker) -> Router:
                 raise
 
         await message.answer(f"Topic archived: `{topic_id}`. Hidden topics: {deleted_count}")
+
+    @router.message(Command("topic_move"))
+    async def topic_move_handler(message: Message) -> None:
+        command = parse_topic_move_command(message.text)
+        if (
+            command.topic_id is None
+            and not command.topic_selector
+            or (not command.move_to_root and command.target_parent_id is None and not command.target_parent_selector)
+        ):
+            await message.answer(
+                "Usage:\n"
+                "/topic_move <topic_uuid|topic_full_path|topic_name> <target_parent_uuid|target_parent_full_path|root>\n"
+                "/topic_move \"neural_networks_ai.codex\" root\n"
+                "/topic_move \"neural_networks_ai.codex\" -> \"infrastructure.tools\""
+            )
+            return
+
+        async with session_factory() as session:
+            topics_repo = TopicsRepository(session)
+            service = TopicService(topics_repo, session=session)
+
+            topic_id = command.topic_id
+            if topic_id is None and command.topic_selector:
+                topic_id, resolve_error = await _resolve_topic_id(topics_repo, command.topic_selector)
+                if resolve_error:
+                    await message.answer(resolve_error)
+                    return
+
+            if topic_id is None:
+                await message.answer("Topic not found.")
+                return
+
+            target_parent_id = None
+            if not command.move_to_root:
+                target_parent_id = command.target_parent_id
+                if target_parent_id is None and command.target_parent_selector:
+                    target_parent_id, resolve_error = await _resolve_parent_topic_id(
+                        topics_repo,
+                        command.target_parent_selector,
+                    )
+                    if resolve_error:
+                        await message.answer(resolve_error)
+                        return
+                if target_parent_id is None:
+                    await message.answer("Parent topic not found.")
+                    return
+
+            try:
+                moved = await service.move_topic(topic_id=topic_id, new_parent_topic_id=target_parent_id)
+            except TopicNotFoundError:
+                await message.answer("Topic not found.")
+                return
+            except TopicConflictError:
+                await message.answer("Target topic path already exists.")
+                return
+            except ValueError as exc:
+                await message.answer(f"Validation error: {exc}")
+                return
+            except Exception as exc:
+                await message.answer(f"Topic move failed: {exc}")
+                raise
+
+        await message.answer(f"Topic moved: `{moved.id}` {moved.full_path}")
 
     return router
 

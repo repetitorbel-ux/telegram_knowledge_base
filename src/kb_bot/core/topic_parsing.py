@@ -22,6 +22,15 @@ class TopicDeleteCommand:
     topic_selector: str | None
 
 
+@dataclass(slots=True)
+class TopicMoveCommand:
+    topic_id: uuid.UUID | None
+    topic_selector: str | None
+    target_parent_id: uuid.UUID | None
+    target_parent_selector: str | None
+    move_to_root: bool
+
+
 def parse_topic_add_command(text: str | None) -> TopicAddCommand:
     if not text:
         return TopicAddCommand(parent_topic_id=None, parent_selector=None, name=None)
@@ -107,3 +116,78 @@ def parse_topic_delete_command(text: str | None) -> TopicDeleteCommand:
     except ValueError:
         return TopicDeleteCommand(topic_id=None, topic_selector=raw_value)
     return TopicDeleteCommand(topic_id=topic_id, topic_selector=None)
+
+
+def parse_topic_move_command(text: str | None) -> TopicMoveCommand:
+    if not text:
+        return TopicMoveCommand(
+            topic_id=None,
+            topic_selector=None,
+            target_parent_id=None,
+            target_parent_selector=None,
+            move_to_root=False,
+        )
+
+    arrow_match = re.match(
+        r'^/topic_move\s+(?:"([^"]+)"|\'([^\']+)\'|(\S+))\s*->\s*(?:"([^"]+)"|\'([^\']+)\'|(\S+))\s*$',
+        text.strip(),
+    )
+    if arrow_match:
+        source_raw = arrow_match.group(1) or arrow_match.group(2) or arrow_match.group(3)
+        target_raw = arrow_match.group(4) or arrow_match.group(5) or arrow_match.group(6)
+        return _build_topic_move_command(source_raw, target_raw)
+
+    parts = text.split(maxsplit=2)
+    if len(parts) < 3:
+        return TopicMoveCommand(
+            topic_id=None,
+            topic_selector=None,
+            target_parent_id=None,
+            target_parent_selector=None,
+            move_to_root=False,
+        )
+    return _build_topic_move_command(parts[1], parts[2])
+
+
+def _build_topic_move_command(source_raw: str | None, target_raw: str | None) -> TopicMoveCommand:
+    source = (source_raw or "").strip()
+    target = (target_raw or "").strip()
+    if not source or not target:
+        return TopicMoveCommand(
+            topic_id=None,
+            topic_selector=None,
+            target_parent_id=None,
+            target_parent_selector=None,
+            move_to_root=False,
+        )
+
+    topic_id: uuid.UUID | None = None
+    topic_selector: str | None = None
+    try:
+        topic_id = uuid.UUID(source)
+    except ValueError:
+        topic_selector = source
+
+    if target.lower() == "root":
+        return TopicMoveCommand(
+            topic_id=topic_id,
+            topic_selector=topic_selector,
+            target_parent_id=None,
+            target_parent_selector=None,
+            move_to_root=True,
+        )
+
+    target_parent_id: uuid.UUID | None = None
+    target_parent_selector: str | None = None
+    try:
+        target_parent_id = uuid.UUID(target)
+    except ValueError:
+        target_parent_selector = target
+
+    return TopicMoveCommand(
+        topic_id=topic_id,
+        topic_selector=topic_selector,
+        target_parent_id=target_parent_id,
+        target_parent_selector=target_parent_selector,
+        move_to_root=False,
+    )

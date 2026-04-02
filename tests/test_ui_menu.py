@@ -28,7 +28,7 @@ from kb_bot.bot.handlers.menu import (
     _render_topics_screen,
     _resolve_topic_entries_back_action,
 )
-from kb_bot.bot.handlers.start import render_restart_text, render_welcome_text
+from kb_bot.bot.handlers.start import render_boot_text, render_restart_text, render_welcome_text
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
     BACKUP_RESTORE_ACK_PREFIX,
@@ -38,6 +38,12 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_MOVE_CREATE_L0,
+    ENTRY_MOVE_CREATE_L1,
+    ENTRY_MOVE_MENU_PREFIX,
+    ENTRY_MOVE_PAGE_PREFIX,
+    ENTRY_MOVE_PARENT_PICK_PREFIX,
+    ENTRY_MOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -67,6 +73,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_DELETE_CONFIRM_PREFIX,
     TOPIC_DELETE_PREFIX,
     TOPIC_ENTRY_PREVIEW_PREFIX,
+    TOPIC_TOGGLE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
 )
@@ -78,6 +85,7 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_entry_delete_confirm_keyboard,
     build_entry_detail_keyboard,
+    build_entry_move_topic_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
@@ -88,24 +96,28 @@ from kb_bot.bot.ui.keyboards import (
     build_main_menu_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
+    build_topic_entries_actions_rows,
     build_topics_keyboard,
+    build_topics_tree_keyboard,
 )
 from kb_bot.domain.dto import TopicDTO
 from kb_bot.services.collection_service import SavedViewDTO
 from kb_bot.services.query_service import EntryDetail
 
 
-def test_render_welcome_text_mentions_menu_and_commands() -> None:
+def test_render_welcome_text_is_short() -> None:
     text = render_welcome_text()
-    assert "кнопками меню" in text
-    assert "/add" in text
-    assert "/stats" in text
+    assert text == "Telegram KB Bot готов к работе."
 
 
-def test_render_restart_text_mentions_restart_behavior() -> None:
+def test_render_boot_text_is_short() -> None:
+    text = render_boot_text()
+    assert text == "Бот запущен и готов к работе."
+
+
+def test_render_restart_text_is_short() -> None:
     text = render_restart_text()
-    assert "перезапущен" in text
-    assert "/start" in text or "не нужно" in text
+    assert text == "Бот перезапущен и снова готов к работе."
 
 
 def test_main_menu_keyboard_contains_expected_actions() -> None:
@@ -241,6 +253,11 @@ def test_render_topic_entries_list_screen_uses_compact_header() -> None:
     assert "Example title [New]" not in text
 
 
+def test_render_topic_entries_list_screen_empty_uses_short_message() -> None:
+    text = _render_entry_list_screen([], "Записи темы: Codex")
+    assert text == "Записи темы: Codex:\nЗаписей не найдено."
+
+
 def test_render_entry_list_screen_empty_contains_next_steps() -> None:
     text = _render_entry_list_screen([], "Статус Verified", page=0)
     assert "Записей не найдено." in text
@@ -279,6 +296,38 @@ def test_entry_results_keyboard_contains_entry_buttons() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_MAIN in callbacks
+
+
+def test_entry_results_keyboard_supports_extra_rows() -> None:
+    items = []
+    extra_rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
+    keyboard = build_entry_results_keyboard(
+        items,
+        extra_rows=extra_rows,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_entry_results_keyboard_can_merge_back_and_main_into_one_row() -> None:
+    keyboard = build_entry_results_keyboard(
+        [],
+        back_callback=MENU_TOPICS,
+        back_text="Назад к списку тем",
+        merge_back_and_main=True,
+    )
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [MENU_TOPICS, MENU_MAIN] in callbacks_by_row
+
+
+def test_topic_entries_actions_rows_contains_manage_actions() -> None:
+    rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
+    callbacks = [button.callback_data for row in rows for button in row]
+    assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert len(rows) == 1
+    assert len(rows[0]) == 3
 
 
 def test_entry_results_keyboard_contains_pagination_callbacks() -> None:
@@ -375,8 +424,9 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
-    assert len(keyboard.inline_keyboard[0]) == 2
+    assert len(keyboard.inline_keyboard[0]) == 3
     assert len(keyboard.inline_keyboard[1]) == 2
 
 
@@ -388,7 +438,52 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+
+
+def test_entry_move_topic_keyboard_for_existing_topics_contains_create_and_pick_actions() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+        TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Child", full_path="Root.Child", level=1),
+    ]
+    keyboard = build_entry_move_topic_keyboard(
+        topics=topics,
+        mode="pick_existing",
+        entry_id="33333333-3333-3333-3333-333333333333",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        page=1,
+        has_prev_page=True,
+        has_next_page=True,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert ENTRY_MOVE_CREATE_L0 in callbacks
+    assert ENTRY_MOVE_CREATE_L1 in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    assert f"{ENTRY_MOVE_PAGE_PREFIX}0" in callbacks
+    assert f"{ENTRY_MOVE_PAGE_PREFIX}2" in callbacks
+    assert (
+        f"{ENTRY_VIEW_PREFIX}33333333-3333-3333-3333-333333333333:{LIST_PAGE_PREFIX}new:1"
+        in callbacks
+    )
+
+
+def test_entry_move_topic_keyboard_for_parent_pick_contains_parent_callbacks_only() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+    ]
+    keyboard = build_entry_move_topic_keyboard(
+        topics=topics,
+        mode="pick_parent",
+        entry_id="33333333-3333-3333-3333-333333333333",
+        entry_back_callback=None,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert ENTRY_MOVE_CREATE_L0 not in callbacks
+    assert ENTRY_MOVE_CREATE_L1 not in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+    assert f"{ENTRY_MOVE_PARENT_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
 def test_entry_status_picker_keyboard_contains_status_actions() -> None:
@@ -474,7 +569,7 @@ def test_render_entry_detail_screen_compacts_long_notes() -> None:
     assert len(text) < 700
 
 
-def test_render_entry_preview_screen_contains_description_and_notes() -> None:
+def test_render_entry_preview_screen_returns_body_only() -> None:
     detail = EntryDetail(
         entry_id="11111111-1111-1111-1111-111111111111",
         title="Entry title",
@@ -486,11 +581,7 @@ def test_render_entry_preview_screen_contains_description_and_notes() -> None:
         description="description body",
     )
     text = _render_entry_preview_screen(detail)
-    assert "Быстрый просмотр" in text
-    assert "Описание:" in text
-    assert "description body" in text
-    assert "Заметки:" in text
-    assert "notes body" in text
+    assert text == "description body"
 
 
 def test_allowed_target_statuses_follow_status_machine() -> None:
@@ -619,8 +710,8 @@ def test_resolve_topic_entries_back_action_for_regular_topic() -> None:
         level=1,
     )
     callback, text = _resolve_topic_entries_back_action(topic)
-    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
-    assert text == "Назад к теме"
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
 
 
 def test_resolve_entry_back_action_for_list_page() -> None:
@@ -757,6 +848,150 @@ def test_topics_keyboard_contains_pagination_callbacks() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPICS_PAGE_PREFIX}0" in callbacks
     assert f"{TOPICS_PAGE_PREFIX}2" in callbacks
+
+
+def test_topics_tree_keyboard_contains_toggle_and_topic_callbacks() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            False,
+        ),
+        (
+            TopicDTO(
+                id="22222222-2222-2222-2222-222222222222",
+                name="Codex",
+                full_path="neural_networks_ai.codex",
+                level=1,
+            ),
+            False,
+            False,
+        ),
+    ]
+
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        has_prev_page=False,
+        has_next_page=False,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_TOGGLE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{TOPIC_VIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert any("Neural Networks / AI" in label for label in labels)
+
+
+def test_topics_tree_keyboard_groups_subtopics_by_three_buttons_per_row() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            True,
+        ),
+        (
+            TopicDTO(id="22222222-2222-2222-2222-222222222222", name="A", full_path="p.a", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="33333333-3333-3333-3333-333333333333", name="B", full_path="p.b", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="44444444-4444-4444-4444-444444444444", name="C", full_path="p.c", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(id="55555555-5555-5555-5555-555555555555", name="D", full_path="p.d", level=1),
+            False,
+            False,
+        ),
+    ]
+
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        has_prev_page=False,
+        has_next_page=False,
+    )
+    topic_rows_only = [
+        row
+        for row in keyboard.inline_keyboard
+        if any((button.callback_data or "").startswith((TOPIC_TOGGLE_PREFIX, TOPIC_VIEW_PREFIX)) for button in row)
+    ]
+
+    # 1 row for parent + 2 rows for 4 subtopics (3 + 1).
+    assert len(topic_rows_only) == 3
+    assert len(topic_rows_only[0]) == 1
+    assert len(topic_rows_only[1]) == 3
+    assert len(topic_rows_only[2]) == 1
+
+
+def test_topics_tree_keyboard_keeps_l0_leaf_as_separate_button() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            True,
+        ),
+        (
+            TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Codex", full_path="p.codex", level=1),
+            False,
+            False,
+        ),
+        (
+            TopicDTO(
+                id="33333333-3333-3333-3333-333333333333",
+                name="Soft_misc",
+                full_path="soft_misc",
+                level=0,
+            ),
+            False,
+            False,
+        ),
+    ]
+    keyboard = build_topics_tree_keyboard(topic_rows, page=0)
+    labels_by_row = [[button.text for button in row] for row in keyboard.inline_keyboard]
+    assert any("Soft_misc" in row[0] and len(row) == 1 for row in labels_by_row)
+
+
+def test_topics_tree_keyboard_contains_pagination_callbacks() -> None:
+    topic_rows = [
+        (
+            TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+            False,
+            False,
+        )
+    ]
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=2,
+        has_prev_page=True,
+        has_next_page=True,
+        page_callback_prefix=TOPICS_PAGE_PREFIX,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPICS_PAGE_PREFIX}1" in callbacks
+    assert f"{TOPICS_PAGE_PREFIX}3" in callbacks
 
 
 def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> None:

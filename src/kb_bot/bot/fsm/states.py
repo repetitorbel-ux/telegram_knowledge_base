@@ -20,5 +20,9 @@ class TopicRenameStates(StatesGroup):
     waiting_name = State()
 
 
+class EntryMoveStates(StatesGroup):
+    waiting_topic_name = State()
+
+
 class GuidedImportStates(StatesGroup):
     waiting_document = State()

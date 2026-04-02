@@ -1,4 +1,5 @@
 import asyncio
+import re
 import subprocess
 
 from aiogram import F, Router
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.bot.fsm.states import (
     AddEntryStates,
+    EntryMoveStates,
     GuidedSearchStates,
     GuidedImportStates,
     TopicCreateStates,
@@ -24,6 +26,12 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_MOVE_CREATE_L0,
+    ENTRY_MOVE_CREATE_L1,
+    ENTRY_MOVE_MENU_PREFIX,
+    ENTRY_MOVE_PAGE_PREFIX,
+    ENTRY_MOVE_PARENT_PICK_PREFIX,
+    ENTRY_MOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -57,6 +65,7 @@ from kb_bot.bot.ui.callbacks import (
     TOPIC_DELETE_PREFIX,
     TOPIC_ENTRY_PREVIEW_PREFIX,
     TOPIC_QUICK_ENTRY_PREFIX,
+    TOPIC_TOGGLE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_RENAME_PREFIX,
     TOPIC_VIEW_PREFIX,
@@ -69,6 +78,7 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_flow_navigation_keyboard,
     build_entry_detail_keyboard,
+    build_entry_move_topic_keyboard,
     build_entry_delete_confirm_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
@@ -79,7 +89,8 @@ from kb_bot.bot.ui.keyboards import (
     build_main_menu_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
-    build_topics_keyboard,
+    build_topic_entries_actions_rows,
+    build_topics_tree_keyboard,
 )
 from kb_bot.core.config import get_settings
 from kb_bot.core.list_parsing import ListFilters
@@ -189,6 +200,79 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await message.answer(
             f"Тема переименована: {topic.name}",
             reply_markup=await _build_topics_keyboard_from_db(session_factory),
+        )
+
+    @router.message(EntryMoveStates.waiting_topic_name, F.text & ~F.text.startswith("/"))
+    async def entry_move_create_topic_name(message: Message, state: FSMContext) -> None:
+        name = (message.text or "").strip()
+        if not name:
+            await message.answer(
+                "Название темы не может быть пустым. Отправьте название еще раз.",
+                reply_markup=build_flow_navigation_keyboard(),
+            )
+            return
+
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_move_entry_id"))
+        if entry_id is None:
+            await state.clear()
+            await message.answer("Сценарий переноса устарел. Откройте запись и начните перенос заново.")
+            return
+
+        create_level = state_data.get("entry_move_create_level")
+        parent_topic_id = None
+        if create_level == "L1":
+            parent_topic_id = _parse_uuid_string(state_data.get("entry_move_parent_topic_id"))
+            if parent_topic_id is None:
+                await state.clear()
+                await message.answer("Не выбрана родительская тема для L1. Начните перенос заново.")
+                return
+
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = entry_back_callback or back_callback
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session), session)
+            entry_service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            query_service = QueryService(EntriesRepository(session))
+            try:
+                created_topic = await topic_service.create_topic(
+                    name=name,
+                    parent_topic_id=parent_topic_id,
+                )
+                await entry_service.move_to_topic(entry_id, created_topic.id)
+            except (ValueError, TopicConflictError, TopicNotFoundError) as exc:
+                await message.answer(str(exc), reply_markup=build_flow_navigation_keyboard())
+                return
+            except EntryNotFoundError:
+                await message.answer("Запись не найдена.", reply_markup=build_home_navigation_keyboard())
+                return
+
+            detail = await query_service.get_entry_detail(entry_id)
+
+        await state.set_state(None)
+        await _clear_entry_move_state(state)
+
+        if detail is None:
+            await message.answer(
+                "Тема создана и перенос выполнен, но карточку записи перечитать не удалось.",
+                reply_markup=build_home_navigation_keyboard(),
+            )
+            return
+
+        await message.answer(
+            _render_entry_detail_screen(detail) + f"\n\nЗапись перенесена в тему: {created_topic.full_path}",
+            reply_markup=build_entry_detail_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
         )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_ADD)
@@ -372,6 +456,201 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             ),
         )
 
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_MOVE_MENU_PREFIX))
+    async def entry_move_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_MOVE_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть перенос записи.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        raw_entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = raw_entry_back_callback or back_callback
+
+        await state.update_data(
+            entry_back_callback=back_callback,
+            entry_back_text=back_text,
+            entry_move_entry_id=str(entry_id),
+            entry_move_mode="pick_existing",
+        )
+        await _clear_entry_move_draft_state(state)
+        await _show_entry_move_topics_page(
+            callback,
+            session_factory,
+            state=state,
+            entry_id=entry_id,
+            entry_back_callback=entry_back_callback,
+            mode="pick_existing",
+            page=0,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_MOVE_PAGE_PREFIX))
+    async def entry_move_topics_page(callback: CallbackQuery, state: FSMContext) -> None:
+        page = _parse_page_callback(callback.data, ENTRY_MOVE_PAGE_PREFIX)
+        if page is None:
+            await callback.answer("Не удалось открыть страницу тем.", show_alert=True)
+            return
+        if page < 0:
+            await callback.answer("Страница вне диапазона.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_move_entry_id"))
+        if entry_id is None:
+            await callback.answer("Сценарий переноса устарел. Откройте запись заново.", show_alert=True)
+            return
+
+        mode = state_data.get("entry_move_mode")
+        if mode not in {"pick_existing", "pick_parent"}:
+            mode = "pick_existing"
+        raw_entry_back_callback, back_callback, _ = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = raw_entry_back_callback or back_callback
+
+        await _show_entry_move_topics_page(
+            callback,
+            session_factory,
+            state=state,
+            entry_id=entry_id,
+            entry_back_callback=entry_back_callback,
+            mode=mode,
+            page=page,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data == ENTRY_MOVE_CREATE_L0)
+    async def entry_move_create_l0(callback: CallbackQuery, state: FSMContext) -> None:
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_move_entry_id"))
+        if entry_id is None:
+            await callback.answer("Сценарий переноса устарел. Откройте запись заново.", show_alert=True)
+            return
+
+        await state.update_data(
+            entry_move_entry_id=str(entry_id),
+            entry_move_create_level="L0",
+            entry_move_parent_topic_id=None,
+        )
+        await state.set_state(EntryMoveStates.waiting_topic_name)
+        await _show_screen(
+            callback,
+            "Создание новой темы L0.\nОтправьте название темы следующим сообщением.",
+            build_flow_navigation_keyboard(),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data == ENTRY_MOVE_CREATE_L1)
+    async def entry_move_create_l1(callback: CallbackQuery, state: FSMContext) -> None:
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_move_entry_id"))
+        if entry_id is None:
+            await callback.answer("Сценарий переноса устарел. Откройте запись заново.", show_alert=True)
+            return
+
+        raw_entry_back_callback, back_callback, _ = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = raw_entry_back_callback or back_callback
+        await state.update_data(entry_move_mode="pick_parent")
+        await _clear_entry_move_draft_state(state)
+
+        await _show_entry_move_topics_page(
+            callback,
+            session_factory,
+            state=state,
+            entry_id=entry_id,
+            entry_back_callback=entry_back_callback,
+            mode="pick_parent",
+            page=0,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_MOVE_PARENT_PICK_PREFIX))
+    async def entry_move_pick_parent(callback: CallbackQuery, state: FSMContext) -> None:
+        parent_topic_id = _parse_entry_id_from_callback(callback.data, ENTRY_MOVE_PARENT_PICK_PREFIX)
+        if parent_topic_id is None:
+            await callback.answer("Не удалось выбрать родительскую тему.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session))
+            topics = await topic_service.list_tree()
+
+        parent_topic = next((item for item in topics if str(item.id) == str(parent_topic_id)), None)
+        if parent_topic is None:
+            await callback.answer("Родительская тема не найдена.", show_alert=True)
+            return
+
+        await state.update_data(
+            entry_move_create_level="L1",
+            entry_move_parent_topic_id=str(parent_topic_id),
+        )
+        await state.set_state(EntryMoveStates.waiting_topic_name)
+        await _show_screen(
+            callback,
+            "Создание подтемы L1.\n"
+            f"Родитель: `{parent_topic.full_path}`\n"
+            "Отправьте название новой подтемы следующим сообщением.",
+            build_flow_navigation_keyboard(),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_MOVE_PICK_PREFIX))
+    async def entry_move_pick_existing_topic(callback: CallbackQuery, state: FSMContext) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, ENTRY_MOVE_PICK_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось выбрать тему.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_move_entry_id"))
+        if entry_id is None:
+            await callback.answer("Сценарий переноса устарел. Откройте запись заново.", show_alert=True)
+            return
+
+        _, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+
+        async with session_factory() as session:
+            entry_service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            query_service = QueryService(EntriesRepository(session))
+            topic_service = TopicService(TopicsRepository(session))
+            try:
+                await entry_service.move_to_topic(entry_id, topic_id)
+            except EntryNotFoundError:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+            except TopicNotFoundError:
+                await callback.answer("Тема не найдена.", show_alert=True)
+                return
+            detail = await query_service.get_entry_detail(entry_id)
+            topics = await topic_service.list_tree()
+
+        await _clear_entry_move_state(state)
+
+        redirected = await _return_to_list_after_entry_delete(
+            callback,
+            session_factory,
+            state=state,
+            back_callback=back_callback,
+        )
+        if redirected:
+            return
+
+        if detail is None:
+            await callback.answer("Не удалось перечитать запись после переноса.", show_alert=True)
+            return
+
+        moved_topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
+        moved_label = moved_topic.full_path if moved_topic is not None else detail.topic_name
+        await _show_screen(
+            callback,
+            _render_entry_detail_screen(detail) + f"\n\nЗапись перенесена в тему: {moved_label}",
+            build_entry_detail_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
     @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_STATUS_MENU_PREFIX))
     async def entry_status_menu(callback: CallbackQuery, state: FSMContext) -> None:
         entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_STATUS_MENU_PREFIX)
@@ -534,10 +813,11 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPICS)
     async def menu_topics(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await _show_topics_page(callback, session_factory, page=0)
+        await state.update_data(topics_expanded_paths=[], topics_page=0)
+        await _show_topics_page(callback, session_factory, state=state, page=0)
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPICS_PAGE_PREFIX))
-    async def topics_page(callback: CallbackQuery) -> None:
+    async def topics_page(callback: CallbackQuery, state: FSMContext) -> None:
         page = _parse_page_callback(callback.data, TOPICS_PAGE_PREFIX)
         if page is None:
             await callback.answer("Не удалось открыть страницу тем.", show_alert=True)
@@ -545,7 +825,36 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         if page < 0:
             await callback.answer("Страница вне диапазона.", show_alert=True)
             return
-        await _show_topics_page(callback, session_factory, page=page)
+        await state.update_data(topics_page=page)
+        await _show_topics_page(callback, session_factory, state=state, page=page)
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_TOGGLE_PREFIX))
+    async def topic_toggle(callback: CallbackQuery, state: FSMContext) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, TOPIC_TOGGLE_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось переключить ветку.", show_alert=True)
+            return
+
+        async with session_factory() as session:
+            topic_service = TopicService(TopicsRepository(session))
+            topics = await topic_service.list_tree()
+
+        topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
+        if topic is None:
+            await callback.answer("Тема не найдена.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        expanded_paths = set(_coerce_str_list(state_data.get("topics_expanded_paths")))
+        if topic.full_path in expanded_paths:
+            expanded_paths.discard(topic.full_path)
+        else:
+            expanded_paths.add(topic.full_path)
+
+        page_raw = state_data.get("topics_page")
+        page = page_raw if isinstance(page_raw, int) and page_raw >= 0 else 0
+        await state.update_data(topics_expanded_paths=sorted(expanded_paths), topics_page=page)
+        await _show_topics_page(callback, session_factory, page=page, state=state)
 
     @router.callback_query(StateFilter("*"), F.data == MENU_TOPIC_CREATE)
     async def menu_topic_create(callback: CallbackQuery, state: FSMContext) -> None:
@@ -593,36 +902,20 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
         async with session_factory() as session:
             topic_service = TopicService(TopicsRepository(session))
-            query_service = QueryService(EntriesRepository(session))
             topics = await topic_service.list_tree()
-            entries = await query_service.list_entries(topic_id=topic_id, limit=5, offset=0)
 
         topic = next((item for item in topics if str(item.id) == str(topic_id)), None)
         if topic is None:
             await callback.answer("Тема не найдена.", show_alert=True)
             return
         await state.update_data(topic_view_id=str(topic_id))
-
-        # To Read is a reading queue: open entries feed immediately.
-        if topic.full_path == "to_read":
-            await _show_topic_entries_page(
-                callback,
-                session_factory,
-                state=state,
-                topic=topic,
-                topic_id=topic_id,
-                page=0,
-            )
-            return
-
-        await _show_screen(
+        await _show_topic_entries_page(
             callback,
-            _render_topic_detail_screen(topic, entries=entries),
-            build_topic_detail_keyboard(
-                str(topic.id),
-                topic_entries_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic.id}:0",
-                quick_entries=entries,
-            ),
+            session_factory,
+            state=state,
+            topic=topic,
+            topic_id=topic_id,
+            page=0,
         )
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_ENTRIES_PAGE_PREFIX))
@@ -681,13 +974,14 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
         await _show_screen(
             callback,
-            _render_entry_preview_screen(detail),
+            _render_entry_preview_screen_html(detail),
             build_entry_preview_keyboard(
                 str(detail.entry_id),
                 entry_back_callback=entry_back_callback,
                 back_callback=back_callback,
                 back_text=back_text,
             ),
+            parse_mode="HTML",
         )
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_QUICK_ENTRY_PREFIX))
@@ -1096,8 +1390,10 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/topics\n"
             "/topic_add <name>\n"
             "/topic_add \"<parent>\" -> <name>\n"
+            "/topic_move <topic_uuid|path|name> <target_parent_uuid|path|root>\n"
             "/topic_rename <topic_uuid> <new_name>\n"
             "/topic_delete <topic_uuid|full_path|name>\n"
+            "/entry_move <entry_uuid> <topic_uuid>\n"
             "/stats\n"
             "/backup\n"
             "/backups\n\n"
@@ -1288,6 +1584,45 @@ async def _load_topics_page(
     return _paginate_rows(rows, page=page, page_size=page_size)
 
 
+async def _load_topics_tree_page(
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+    expanded_paths: set[str],
+    page_size: int = PAGE_SIZE,
+) -> tuple[list[tuple[TopicDTO, bool, bool]], bool]:
+    async with session_factory() as session:
+        service = TopicService(TopicsRepository(session))
+        topics = await service.list_tree()
+
+    roots = [item for item in topics if item.level == 0]
+    roots_page, has_next_page = _paginate_rows(roots, page=page, page_size=page_size)
+
+    parent_children: dict[str, list[TopicDTO]] = {}
+    for topic in topics:
+        parent_path = _topic_parent_path(topic.full_path)
+        if parent_path is None:
+            continue
+        parent_children.setdefault(parent_path, []).append(topic)
+
+    rows: list[tuple[TopicDTO, bool, bool]] = []
+
+    def _append_branch(current: TopicDTO) -> None:
+        children = parent_children.get(current.full_path, [])
+        has_children = bool(children)
+        is_expanded = current.full_path in expanded_paths
+        rows.append((current, has_children, is_expanded))
+        if not has_children or not is_expanded:
+            return
+        for child in children:
+            _append_branch(child)
+
+    for root_topic in roots_page:
+        _append_branch(root_topic)
+
+    return rows, has_next_page
+
+
 async def _load_collections_page(
     session_factory: async_sessionmaker,
     *,
@@ -1339,13 +1674,25 @@ async def _show_topics_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
     *,
+    state: FSMContext | None = None,
     page: int,
 ) -> None:
-    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
+    expanded_paths: set[str] = set()
+    if state is not None:
+        state_data = await state.get_data()
+        expanded_paths = set(_coerce_str_list(state_data.get("topics_expanded_paths")))
+        await state.update_data(topics_page=page)
+
+    items, has_next_page = await _load_topics_tree_page(
+        session_factory,
+        page=page,
+        expanded_paths=expanded_paths,
+        page_size=PAGE_SIZE,
+    )
     await _show_screen(
         callback,
         _render_topics_overview_screen(items, page=page),
-        build_topics_keyboard(
+        build_topics_tree_keyboard(
             items,
             page=page,
             has_prev_page=page > 0,
@@ -1393,6 +1740,59 @@ async def _show_topic_entries_page(
             page_callback_prefix=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:",
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
             preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+            extra_rows=build_topic_entries_actions_rows(str(topic_id)),
+            merge_back_and_main=True,
+        ),
+    )
+
+
+async def _show_entry_move_topics_page(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    state: FSMContext,
+    entry_id,
+    entry_back_callback: str | None,
+    mode: str,
+    page: int,
+) -> None:
+    async with session_factory() as session:
+        query_service = QueryService(EntriesRepository(session))
+        detail = await query_service.get_entry_detail(entry_id)
+
+    if detail is None:
+        await callback.answer("Запись не найдена.", show_alert=True)
+        return
+
+    topics, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
+    await state.update_data(
+        entry_move_entry_id=str(entry_id),
+        entry_move_mode=mode,
+        entry_back_callback=entry_back_callback,
+    )
+
+    if mode == "pick_parent":
+        header = (
+            _render_entry_detail_screen(detail)
+            + "\n\nВыберите родительскую тему для новой подтемы L1."
+        )
+    else:
+        header = (
+            _render_entry_detail_screen(detail)
+            + "\n\nВыберите существующую тему для переноса или создайте новую (L0/L1)."
+        )
+
+    await _show_screen(
+        callback,
+        header,
+        build_entry_move_topic_keyboard(
+            topics=topics,
+            mode=mode,
+            entry_id=str(entry_id),
+            entry_back_callback=entry_back_callback,
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
         ),
     )
 
@@ -1477,17 +1877,18 @@ async def _show_screen(
     callback: CallbackQuery,
     text: str,
     markup,
+    parse_mode: str | None = None,
 ) -> None:
     await callback.answer()
     if callback.message is None:
         return
 
     if callback.message.text is None:
-        await callback.message.answer(text, reply_markup=markup)
+        await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
         return
 
     try:
-        await callback.message.edit_text(text, reply_markup=markup)
+        await callback.message.edit_text(text, reply_markup=markup, parse_mode=parse_mode)
     except TelegramBadRequest as exc:
         error_text = str(exc).lower()
         if "message is not modified" in error_text:
@@ -1496,9 +1897,9 @@ async def _show_screen(
             if current_text == target_text:
                 await callback.message.edit_reply_markup(reply_markup=markup)
                 return
-            await callback.message.answer(text, reply_markup=markup)
+            await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
             return
-        await callback.message.answer(text, reply_markup=markup)
+        await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
 
 
 def _render_stats_screen(stats: dict) -> str:
@@ -1554,6 +1955,9 @@ def _render_topic_detail_screen(topic: TopicDTO, entries: list[EntryDetail] | No
 
 def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int = 0) -> str:
     header = title if page == 0 else f"{title} (страница {page + 1})"
+    if not items and title.startswith("Записи темы:"):
+        return f"{header}:\nЗаписей не найдено."
+
     if not items:
         return (
             f"{header}:\n"
@@ -1626,17 +2030,26 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
 
 
 def _render_entry_preview_screen(detail: EntryDetail) -> str:
-    link = detail.normalized_url or detail.original_url or "-"
-    description = _render_preview_block(detail.description)
-    notes = _render_preview_block(detail.notes)
-    return (
-        "Быстрый просмотр:\n"
-        f"Заголовок: {detail.title}\n"
-        f"Тема: {detail.topic_name}\n"
-        f"URL: {link}\n\n"
-        f"Описание:\n{description}\n\n"
-        f"Заметки:\n{notes}"
-    )
+    if detail.description:
+        return _render_preview_block(detail.description)
+    if detail.notes:
+        return _render_preview_block(detail.notes)
+    if detail.title:
+        return _render_preview_block(detail.title)
+    return "-"
+
+
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+
+
+def _render_entry_preview_screen_html(detail: EntryDetail) -> str:
+    if detail.description:
+        return _render_preview_block_html(detail.description)
+    if detail.notes:
+        return _render_preview_block_html(detail.notes)
+    if detail.title:
+        return _render_preview_block_html(detail.title)
+    return "-"
 
 
 def _allowed_target_statuses(current_status: str) -> list[str]:
@@ -1647,8 +2060,13 @@ def _allowed_target_statuses(current_status: str) -> list[str]:
 
 
 async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
-    items, has_next_page = await _load_topics_page(session_factory, page=page, page_size=PAGE_SIZE)
-    return build_topics_keyboard(
+    items, has_next_page = await _load_topics_tree_page(
+        session_factory,
+        page=page,
+        expanded_paths=set(),
+        page_size=PAGE_SIZE,
+    )
+    return build_topics_tree_keyboard(
         items,
         page=page,
         has_prev_page=page > 0,
@@ -1657,13 +2075,17 @@ async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *,
     )
 
 
-def _render_topics_overview_screen(topics: list[TopicDTO], *, page: int = 0) -> str:
+def _render_topics_overview_screen(topics: list[tuple[TopicDTO, bool, bool]], *, page: int = 0) -> str:
     if not topics and page == 0:
         return "Темы пока не найдены.\n\nМожно создать первую тему кнопкой ниже."
     if not topics:
         return "Темы:\nСтраница пуста. Вернитесь назад."
     page_hint = "" if page == 0 else f" (страница {page + 1})"
-    return f"Темы{page_hint}:\nВыберите тему кнопкой ниже или создайте новую."
+    return (
+        f"Темы{page_hint}:\n"
+        "Выберите тему кнопкой ниже.\n"
+        "Нажмите `▶/▼`, чтобы свернуть или развернуть подтемы."
+    )
 
 
 async def _build_collections_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
@@ -1792,9 +2214,7 @@ def _get_list_kind_config(list_kind: str):
 
 
 def _resolve_topic_entries_back_action(topic: TopicDTO) -> tuple[str, str]:
-    if topic.full_path == "to_read":
-        return MENU_TOPICS, "Назад к списку тем"
-    return f"{TOPIC_VIEW_PREFIX}{topic.id}", "Назад к теме"
+    return MENU_TOPICS, "Назад к списку тем"
 
 
 def _resolve_entry_back_action(entry_back_callback: str | None):
@@ -1865,6 +2285,34 @@ def _parse_uuid_string(raw: str | None):
         return None
 
 
+def _coerce_str_list(raw: object) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, str) and item.strip()]
+
+
+def _topic_parent_path(full_path: str) -> str | None:
+    if "." not in full_path:
+        return None
+    parent_path, _, _ = full_path.rpartition(".")
+    return parent_path or None
+
+
+async def _clear_entry_move_draft_state(state: FSMContext) -> None:
+    await state.update_data(
+        entry_move_create_level=None,
+        entry_move_parent_topic_id=None,
+    )
+
+
+async def _clear_entry_move_state(state: FSMContext) -> None:
+    await _clear_entry_move_draft_state(state)
+    await state.update_data(
+        entry_move_entry_id=None,
+        entry_move_mode=None,
+    )
+
+
 def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
     if not value:
         return "-"
@@ -1874,6 +2322,19 @@ def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 1] + "…"
+
+
+def _render_preview_block_html(value: str | None, *, limit: int = 1200) -> str:
+    if not value:
+        return "-"
+    compact = value.strip()
+    if not compact:
+        return "-"
+    if len(compact) > limit:
+        compact = compact[: limit - 1] + "…"
+    if _HTML_TAG_RE.search(compact):
+        return compact
+    return html.escape(compact)
 
 
 def _render_compact_card_notes(value: str | None, *, limit: int = 260) -> str:

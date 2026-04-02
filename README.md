@@ -15,7 +15,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `/entry <entry_uuid>` (entry card/details)
   - `/entry_delete <entry_uuid>` (delete entry)
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
-  - `/topic_add` and `/topic_rename` for dynamic topic tree edits, including nested subtopics
+  - `/topic_add`, `/topic_move`, and `/topic_rename` for dynamic topic tree edits, including nested subtopics
   - Forward message auto-save to topic `To read` (slug-stable routing) with status `To Read`
   - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
   - CSV/JSON import via Telegram document (`/import`)
@@ -81,6 +81,7 @@ Release smoke options:
   - `/topic_add <parent_uuid|root> <name>`
   - `/topic_add parent=<parent_full_path_or_name> <name>`
   - `/topic_add "Neural Networks / AI" -> Codex`
+  - `/topic_move <topic_uuid|topic_full_path|topic_name> <target_parent_uuid|target_parent_full_path|root>`
   - `/topic_rename <topic_uuid> <new_name>`
   - `/topic_delete <topic_uuid|topic_full_path|topic_name>`
 

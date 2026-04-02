@@ -121,3 +121,47 @@ class TopicService:
 
         await self.session.commit()
         return 1 + len(descendants)
+
+    async def move_topic(self, topic_id: uuid.UUID, new_parent_topic_id: uuid.UUID | None) -> TopicDTO:
+        topic = await self.topics_repo.get(topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        parent = None
+        if new_parent_topic_id is not None:
+            parent = await self.topics_repo.get(new_parent_topic_id)
+            if parent is None:
+                raise TopicNotFoundError("parent topic not found")
+            if parent.id == topic.id:
+                raise ValueError("topic cannot be moved under itself")
+            if parent.full_path == topic.full_path or parent.full_path.startswith(f"{topic.full_path}."):
+                raise ValueError("topic cannot be moved under its own descendant")
+
+        old_prefix = topic.full_path
+        target_level = 0 if parent is None else parent.level + 1
+        target_prefix = "" if parent is None else parent.full_path
+        target_full_path = topic.slug if not target_prefix else f"{target_prefix}.{topic.slug}"
+
+        if target_full_path == topic.full_path and topic.parent_topic_id == new_parent_topic_id:
+            return TopicDTO(id=topic.id, name=topic.name, full_path=topic.full_path, level=topic.level)
+
+        existing = await self.topics_repo.get_by_full_path(target_full_path)
+        if existing is not None and existing.id != topic.id:
+            raise TopicConflictError("topic with this path already exists")
+
+        level_shift = target_level - topic.level
+        topic.parent_topic_id = new_parent_topic_id
+        topic.full_path = target_full_path
+        topic.full_path_ltree = target_full_path
+        topic.level = target_level
+
+        descendants = await self.topics_repo.list_descendants(old_prefix)
+        for child in descendants:
+            suffix = child.full_path[len(old_prefix) :]
+            child.full_path = f"{target_full_path}{suffix}"
+            child.full_path_ltree = child.full_path
+            child.level = max(0, child.level + level_shift)
+
+        await self.session.commit()
+        await self.session.refresh(topic)
+        return TopicDTO(id=topic.id, name=topic.name, full_path=topic.full_path, level=topic.level)

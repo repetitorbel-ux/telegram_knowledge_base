@@ -29,7 +29,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 
 from kb_bot.bot.router import build_router
-from kb_bot.bot.handlers.start import render_restart_text
+from kb_bot.bot.handlers.start import render_boot_text
 from kb_bot.bot.ui.keyboards import build_main_menu_keyboard
 from kb_bot.core.auth import AllowlistMiddleware
 from kb_bot.core.config import get_settings
@@ -115,7 +115,7 @@ async def run_bot() -> None:
         try:
             await bot.send_message(
                 chat_id=settings.telegram_allowed_user_id,
-                text=render_restart_text(),
+                text=render_boot_text(),
                 reply_markup=build_main_menu_keyboard(),
                 disable_notification=True,
             )
@@ -138,7 +138,9 @@ def _build_main_menu_commands() -> list[BotCommand]:
         BotCommand(command="search", description="Поиск"),
         BotCommand(command="list", description="Быстрые списки"),
         BotCommand(command="topics", description="Темы"),
+        BotCommand(command="topic_move", description="Переместить тему"),
         BotCommand(command="entry", description="Открыть карточку записи"),
+        BotCommand(command="entry_move", description="Перенести запись в тему"),
         BotCommand(command="entry_delete", description="Удалить запись по ID"),
         BotCommand(command="status", description="Сменить статус"),
         BotCommand(command="stats", description="Статистика"),

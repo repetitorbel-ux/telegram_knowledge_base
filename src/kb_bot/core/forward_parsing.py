@@ -2,6 +2,11 @@ import re
 from collections.abc import Iterable
 
 URL_RE = re.compile(r"https?://[^\s]+", re.IGNORECASE)
+FORWARD_NOISE_LINE_RE = re.compile(r"^\s*(ссылка|link)\s*$", re.IGNORECASE)
+FORWARD_NOISE_HTML_LINE_RE = re.compile(
+    r"^\s*(?:<[^>]+>\s*)*(ссылка|link)(?:\s*</[^>]+>)*\s*$",
+    re.IGNORECASE,
+)
 
 
 def extract_first_url(text: str | None, *, entities: Iterable[object] | None = None) -> str | None:
@@ -32,6 +37,30 @@ def build_forward_title(text: str | None) -> str:
     if not compact:
         return "Forwarded message"
     return compact[:80]
+
+
+def build_forward_description(text: str | None) -> str | None:
+    if not text:
+        return None
+
+    lines = [line.rstrip() for line in text.splitlines()]
+    cleaned_lines = [line for line in lines if not FORWARD_NOISE_LINE_RE.match(line)]
+    compact = "\n".join(cleaned_lines).strip()
+    if not compact:
+        return None
+    return compact
+
+
+def build_forward_description_html(text: str | None) -> str | None:
+    if not text:
+        return None
+
+    lines = [line.rstrip() for line in text.splitlines()]
+    cleaned_lines = [line for line in lines if not FORWARD_NOISE_HTML_LINE_RE.match(line)]
+    compact = "\n".join(cleaned_lines).strip()
+    if not compact:
+        return None
+    return compact
 
 
 def build_forward_notes(text: str | None, origin_repr: str | None) -> str | None:
