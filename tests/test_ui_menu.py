@@ -38,6 +38,12 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_MOVE_CREATE_L0,
+    ENTRY_MOVE_CREATE_L1,
+    ENTRY_MOVE_MENU_PREFIX,
+    ENTRY_MOVE_PAGE_PREFIX,
+    ENTRY_MOVE_PARENT_PICK_PREFIX,
+    ENTRY_MOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -78,6 +84,7 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_entry_delete_confirm_keyboard,
     build_entry_detail_keyboard,
+    build_entry_move_topic_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
@@ -375,8 +382,9 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
-    assert len(keyboard.inline_keyboard[0]) == 2
+    assert len(keyboard.inline_keyboard[0]) == 3
     assert len(keyboard.inline_keyboard[1]) == 2
 
 
@@ -388,7 +396,52 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+
+
+def test_entry_move_topic_keyboard_for_existing_topics_contains_create_and_pick_actions() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+        TopicDTO(id="22222222-2222-2222-2222-222222222222", name="Child", full_path="Root.Child", level=1),
+    ]
+    keyboard = build_entry_move_topic_keyboard(
+        topics=topics,
+        mode="pick_existing",
+        entry_id="33333333-3333-3333-3333-333333333333",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        page=1,
+        has_prev_page=True,
+        has_next_page=True,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert ENTRY_MOVE_CREATE_L0 in callbacks
+    assert ENTRY_MOVE_CREATE_L1 in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    assert f"{ENTRY_MOVE_PAGE_PREFIX}0" in callbacks
+    assert f"{ENTRY_MOVE_PAGE_PREFIX}2" in callbacks
+    assert (
+        f"{ENTRY_VIEW_PREFIX}33333333-3333-3333-3333-333333333333:{LIST_PAGE_PREFIX}new:1"
+        in callbacks
+    )
+
+
+def test_entry_move_topic_keyboard_for_parent_pick_contains_parent_callbacks_only() -> None:
+    topics = [
+        TopicDTO(id="11111111-1111-1111-1111-111111111111", name="Root", full_path="Root", level=0),
+    ]
+    keyboard = build_entry_move_topic_keyboard(
+        topics=topics,
+        mode="pick_parent",
+        entry_id="33333333-3333-3333-3333-333333333333",
+        entry_back_callback=None,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert ENTRY_MOVE_CREATE_L0 not in callbacks
+    assert ENTRY_MOVE_CREATE_L1 not in callbacks
+    assert f"{ENTRY_MOVE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+    assert f"{ENTRY_MOVE_PARENT_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
 def test_entry_status_picker_keyboard_contains_status_actions() -> None:
@@ -619,8 +672,8 @@ def test_resolve_topic_entries_back_action_for_regular_topic() -> None:
         level=1,
     )
     callback, text = _resolve_topic_entries_back_action(topic)
-    assert callback == f"{TOPIC_VIEW_PREFIX}11111111-1111-1111-1111-111111111111"
-    assert text == "Назад к теме"
+    assert callback == MENU_TOPICS
+    assert text == "Назад к списку тем"
 
 
 def test_resolve_entry_back_action_for_list_page() -> None:

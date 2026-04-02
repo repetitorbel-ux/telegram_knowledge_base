@@ -128,3 +128,28 @@ class EntryService:
             raise EntryNotFoundError("entry not found")
         await self.entries_repo.delete(entry)
         await self.session.commit()
+
+    async def move_to_topic(self, entry_id: uuid.UUID, target_topic_id: uuid.UUID) -> EntryDTO:
+        row = await self.entries_repo.get_with_status(entry_id)
+        if row is None:
+            raise EntryNotFoundError("entry not found")
+        entry, current_status_name = row
+
+        topic = await self.topics_repo.get(target_topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        entry.primary_topic_id = topic.id
+        await self.session.commit()
+        await self.session.refresh(entry)
+
+        return EntryDTO(
+            id=entry.id,
+            title=entry.title,
+            original_url=entry.original_url,
+            normalized_url=entry.normalized_url,
+            primary_topic_id=entry.primary_topic_id,
+            status_name=current_status_name,
+            notes=entry.notes,
+            saved_date=entry.saved_date,
+        )

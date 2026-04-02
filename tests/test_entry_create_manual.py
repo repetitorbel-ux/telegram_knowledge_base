@@ -152,3 +152,71 @@ def test_delete_entry_not_found() -> None:
 
     entries_repo.delete.assert_not_awaited()
     session.commit.assert_not_awaited()
+
+
+def test_move_entry_to_topic_success() -> None:
+    entry_id = uuid.uuid4()
+    source_topic_id = uuid.uuid4()
+    target_topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entry = types.SimpleNamespace(
+        id=entry_id,
+        title="Entry",
+        original_url="https://x.com",
+        normalized_url="https://x.com/",
+        primary_topic_id=source_topic_id,
+        notes="note",
+        saved_date=None,
+    )
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=(entry, "To Read")),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=target_topic_id)))
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    result = run_coroutine(service.move_to_topic(entry_id, target_topic_id))
+
+    assert result.id == entry_id
+    assert result.primary_topic_id == target_topic_id
+    assert result.status_name == "To Read"
+    assert entry.primary_topic_id == target_topic_id
+    entries_repo.get_with_status.assert_awaited_once_with(entry_id)
+    topics_repo.get.assert_awaited_once_with(target_topic_id)
+    session.commit.assert_awaited_once()
+    session.refresh.assert_awaited_once_with(entry)
+
+
+def test_move_entry_to_topic_fails_on_missing_topic() -> None:
+    entry_id = uuid.uuid4()
+    target_topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=(types.SimpleNamespace(id=entry_id), "New")),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=None))
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(TopicNotFoundError):
+        run_coroutine(service.move_to_topic(entry_id, target_topic_id))
+
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
+
+
+def test_move_entry_to_topic_fails_on_missing_entry() -> None:
+    entry_id = uuid.uuid4()
+    target_topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(get_with_status=AsyncMock(return_value=None))
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(EntryNotFoundError):
+        run_coroutine(service.move_to_topic(entry_id, target_topic_id))
+
+    topics_repo.get.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
