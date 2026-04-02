@@ -146,6 +146,7 @@ def build_entry_results_keyboard(
     entry_back_callback: str | None = None,
     preview_callback_prefix: str | None = None,
     extra_rows: list[list[InlineKeyboardButton]] | None = None,
+    merge_back_and_main: bool = False,
 ) -> InlineKeyboardMarkup:
     rows = []
     for item in items:
@@ -196,7 +197,17 @@ def build_entry_results_keyboard(
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
     if back_callback and back_text:
-        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+        if merge_back_and_main:
+            rows.append(
+                [
+                    InlineKeyboardButton(text=back_text, callback_data=back_callback),
+                    InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+                ]
+            )
+        else:
+            rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+            rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+            return InlineKeyboardMarkup(inline_keyboard=rows)
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -430,9 +441,11 @@ def build_entry_move_topic_keyboard(
 
 def build_topic_entries_actions_rows(topic_id: str) -> list[list[InlineKeyboardButton]]:
     return [
-        [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
-        [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
-        [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
+        [
+            InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}"),
+            InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}"),
+            InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}"),
+        ]
     ]
 
 

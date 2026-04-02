@@ -309,12 +309,25 @@ def test_entry_results_keyboard_supports_extra_rows() -> None:
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
 
 
+def test_entry_results_keyboard_can_merge_back_and_main_into_one_row() -> None:
+    keyboard = build_entry_results_keyboard(
+        [],
+        back_callback=MENU_TOPICS,
+        back_text="Назад к списку тем",
+        merge_back_and_main=True,
+    )
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [MENU_TOPICS, MENU_MAIN] in callbacks_by_row
+
+
 def test_topic_entries_actions_rows_contains_manage_actions() -> None:
     rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
     callbacks = [button.callback_data for row in rows for button in row]
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert len(rows) == 1
+    assert len(rows[0]) == 3
 
 
 def test_entry_results_keyboard_contains_pagination_callbacks() -> None:

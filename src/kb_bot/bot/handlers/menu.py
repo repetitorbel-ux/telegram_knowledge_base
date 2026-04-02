@@ -1741,6 +1741,7 @@ async def _show_topic_entries_page(
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
             preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
             extra_rows=build_topic_entries_actions_rows(str(topic_id)),
+            merge_back_and_main=True,
         ),
     )
 
