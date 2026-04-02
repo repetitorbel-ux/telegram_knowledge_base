@@ -2,7 +2,13 @@ from aiogram import F, Router
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from kb_bot.core.forward_parsing import build_forward_notes, build_forward_title, extract_first_url
+from kb_bot.core.forward_parsing import (
+    build_forward_description,
+    build_forward_description_html,
+    build_forward_notes,
+    build_forward_title,
+    extract_first_url,
+)
 from kb_bot.db.orm.topic import Topic
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
@@ -32,7 +38,9 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
         entities = [*(message.entities or []), *(message.caption_entities or [])]
         original_url = extract_first_url(text, entities=entities)
         title = build_forward_title(text)
-        notes = build_forward_notes(text, _origin_repr(message))
+        html_text = getattr(message, "html_text", None) or getattr(message, "caption_html", None)
+        description = build_forward_description_html(html_text) or build_forward_description(text)
+        notes = build_forward_notes(None, _origin_repr(message))
 
         async with session_factory() as session:
             topics_repo = TopicsRepository(session)
@@ -51,6 +59,7 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
                 title=title,
                 primary_topic_id=default_topic.id,
                 original_url=original_url,
+                description=description,
                 notes=notes,
                 status_code="TO_READ",
             )

@@ -250,6 +250,11 @@ def test_render_topic_entries_list_screen_uses_compact_header() -> None:
     assert "Example title [New]" not in text
 
 
+def test_render_topic_entries_list_screen_empty_uses_short_message() -> None:
+    text = _render_entry_list_screen([], "Записи темы: Codex")
+    assert text == "Записи темы: Codex:\nЗаписей не найдено."
+
+
 def test_render_entry_list_screen_empty_contains_next_steps() -> None:
     text = _render_entry_list_screen([], "Статус Verified", page=0)
     assert "Записей не найдено." in text
@@ -529,7 +534,7 @@ def test_render_entry_detail_screen_compacts_long_notes() -> None:
     assert len(text) < 700
 
 
-def test_render_entry_preview_screen_contains_description_and_notes() -> None:
+def test_render_entry_preview_screen_returns_body_only() -> None:
     detail = EntryDetail(
         entry_id="11111111-1111-1111-1111-111111111111",
         title="Entry title",
@@ -541,11 +546,7 @@ def test_render_entry_preview_screen_contains_description_and_notes() -> None:
         description="description body",
     )
     text = _render_entry_preview_screen(detail)
-    assert "Быстрый просмотр" in text
-    assert "Описание:" in text
-    assert "description body" in text
-    assert "Заметки:" in text
-    assert "notes body" in text
+    assert text == "description body"
 
 
 def test_allowed_target_statuses_follow_status_machine() -> None:

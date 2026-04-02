@@ -1,4 +1,5 @@
 import asyncio
+import re
 import subprocess
 
 from aiogram import F, Router
@@ -622,6 +623,15 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
         await _clear_entry_move_state(state)
 
+        redirected = await _return_to_list_after_entry_delete(
+            callback,
+            session_factory,
+            state=state,
+            back_callback=back_callback,
+        )
+        if redirected:
+            return
+
         if detail is None:
             await callback.answer("Не удалось перечитать запись после переноса.", show_alert=True)
             return
@@ -932,13 +942,14 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
         await _show_screen(
             callback,
-            _render_entry_preview_screen(detail),
+            _render_entry_preview_screen_html(detail),
             build_entry_preview_keyboard(
                 str(detail.entry_id),
                 entry_back_callback=entry_back_callback,
                 back_callback=back_callback,
                 back_text=back_text,
             ),
+            parse_mode="HTML",
         )
 
     @router.callback_query(StateFilter("*"), F.data.startswith(TOPIC_QUICK_ENTRY_PREFIX))
@@ -1781,17 +1792,18 @@ async def _show_screen(
     callback: CallbackQuery,
     text: str,
     markup,
+    parse_mode: str | None = None,
 ) -> None:
     await callback.answer()
     if callback.message is None:
         return
 
     if callback.message.text is None:
-        await callback.message.answer(text, reply_markup=markup)
+        await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
         return
 
     try:
-        await callback.message.edit_text(text, reply_markup=markup)
+        await callback.message.edit_text(text, reply_markup=markup, parse_mode=parse_mode)
     except TelegramBadRequest as exc:
         error_text = str(exc).lower()
         if "message is not modified" in error_text:
@@ -1800,9 +1812,9 @@ async def _show_screen(
             if current_text == target_text:
                 await callback.message.edit_reply_markup(reply_markup=markup)
                 return
-            await callback.message.answer(text, reply_markup=markup)
+            await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
             return
-        await callback.message.answer(text, reply_markup=markup)
+        await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
 
 
 def _render_stats_screen(stats: dict) -> str:
@@ -1858,6 +1870,9 @@ def _render_topic_detail_screen(topic: TopicDTO, entries: list[EntryDetail] | No
 
 def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int = 0) -> str:
     header = title if page == 0 else f"{title} (страница {page + 1})"
+    if not items and title.startswith("Записи темы:"):
+        return f"{header}:\nЗаписей не найдено."
+
     if not items:
         return (
             f"{header}:\n"
@@ -1930,17 +1945,26 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
 
 
 def _render_entry_preview_screen(detail: EntryDetail) -> str:
-    link = detail.normalized_url or detail.original_url or "-"
-    description = _render_preview_block(detail.description)
-    notes = _render_preview_block(detail.notes)
-    return (
-        "Быстрый просмотр:\n"
-        f"Заголовок: {detail.title}\n"
-        f"Тема: {detail.topic_name}\n"
-        f"URL: {link}\n\n"
-        f"Описание:\n{description}\n\n"
-        f"Заметки:\n{notes}"
-    )
+    if detail.description:
+        return _render_preview_block(detail.description)
+    if detail.notes:
+        return _render_preview_block(detail.notes)
+    if detail.title:
+        return _render_preview_block(detail.title)
+    return "-"
+
+
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+
+
+def _render_entry_preview_screen_html(detail: EntryDetail) -> str:
+    if detail.description:
+        return _render_preview_block_html(detail.description)
+    if detail.notes:
+        return _render_preview_block_html(detail.notes)
+    if detail.title:
+        return _render_preview_block_html(detail.title)
+    return "-"
 
 
 def _allowed_target_statuses(current_status: str) -> list[str]:
@@ -2191,6 +2215,19 @@ def _render_preview_block(value: str | None, *, limit: int = 1200) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 1] + "…"
+
+
+def _render_preview_block_html(value: str | None, *, limit: int = 1200) -> str:
+    if not value:
+        return "-"
+    compact = value.strip()
+    if not compact:
+        return "-"
+    if len(compact) > limit:
+        compact = compact[: limit - 1] + "…"
+    if _HTML_TAG_RE.search(compact):
+        return compact
+    return html.escape(compact)
 
 
 def _render_compact_card_notes(value: str | None, *, limit: int = 260) -> str:
