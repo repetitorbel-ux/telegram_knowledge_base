@@ -1,6 +1,9 @@
 import os
 
 os.environ.pop("SSLKEYLOGFILE", None)
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
+os.environ.setdefault("TELEGRAM_ALLOWED_USER_ID", "1")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u:p@127.0.0.1:5432/db")
 
 from kb_bot.bot.router import build_router
 
