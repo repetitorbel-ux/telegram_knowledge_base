@@ -1900,6 +1900,13 @@ async def _show_screen(
                 return
             await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
             return
+        if parse_mode == "HTML" and "can't parse entities" in error_text:
+            fallback_text = _html_to_plain_text(text)
+            try:
+                await callback.message.edit_text(fallback_text, reply_markup=markup)
+            except TelegramBadRequest:
+                await callback.message.answer(fallback_text, reply_markup=markup)
+            return
         await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
 
 
@@ -2019,6 +2026,7 @@ def _render_search_results_screen(items: list, query: str, *, page: int = 0) -> 
 
 def _render_entry_detail_screen(detail: EntryDetail) -> str:
     compact_notes = _render_compact_card_notes(detail.notes)
+    body = _render_card_body_text(detail.description, fallback=detail.notes)
     return (
         "Карточка записи:\n"
         f"ID: `{detail.entry_id}`\n"
@@ -2026,7 +2034,8 @@ def _render_entry_detail_screen(detail: EntryDetail) -> str:
         f"Статус: {detail.status_name}\n"
         f"Тема: {detail.topic_name}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
-        f"Заметки: {compact_notes}"
+        f"Заметки: {compact_notes}\n"
+        f"Текст:\n{body}"
     )
 
 
@@ -2041,6 +2050,8 @@ def _render_entry_preview_screen(detail: EntryDetail) -> str:
 
 
 _HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+_HTML_BR_RE = re.compile(r"(?i)<br\s*/?>")
+_HTML_BLOCK_CLOSE_RE = re.compile(r"(?i)</(?:p|div|li|h[1-6]|blockquote)>")
 
 
 def _render_entry_preview_screen_html(detail: EntryDetail) -> str:
@@ -2331,10 +2342,20 @@ def _render_preview_block_html(value: str | None, *, limit: int = 1200) -> str:
     compact = value.strip()
     if not compact:
         return "-"
+    if _HTML_TAG_RE.search(compact):
+        # Keep rich formatting when possible. For known problematic Telegram
+        # variants (e.g. <blockquote expandable>) normalize to safe markup.
+        safe_html = re.sub(r"(?i)<blockquote[^>]*>", "<blockquote>", compact)
+        # Custom emoji identifiers from external sources can be invalid for the
+        # current bot and crash HTML parsing. Keep plain glyph text only.
+        safe_html = re.sub(r"(?is)<tg-emoji[^>]*>", "", safe_html)
+        safe_html = re.sub(r"(?is)</tg-emoji>", "", safe_html)
+        if len(_html_to_plain_text(safe_html)) > limit:
+            truncated = _html_to_plain_text(safe_html)[: limit - 1] + "…"
+            return html.escape(truncated)
+        return safe_html
     if len(compact) > limit:
         compact = compact[: limit - 1] + "…"
-    if _HTML_TAG_RE.search(compact):
-        return compact
     return html.escape(compact)
 
 
@@ -2348,3 +2369,30 @@ def _render_compact_card_notes(value: str | None, *, limit: int = 260) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 1] + "…"
+
+
+def _render_card_body_text(value: str | None, *, fallback: str | None = None, limit: int = 260) -> str:
+    primary = value or fallback
+    if not primary:
+        return "-"
+
+    compact = primary.strip()
+    if not compact:
+        return "-"
+
+    if _HTML_TAG_RE.search(compact):
+        compact = _html_to_plain_text(compact)
+
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1] + "…"
+
+
+def _html_to_plain_text(value: str) -> str:
+    normalized = _HTML_BR_RE.sub("\n", value)
+    normalized = _HTML_BLOCK_CLOSE_RE.sub("\n\n", normalized)
+    normalized = _HTML_TAG_RE.sub("", normalized)
+    normalized = html.unescape(normalized)
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
+    return normalized.strip()

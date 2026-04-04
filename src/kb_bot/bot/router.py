@@ -20,6 +20,8 @@ from kb_bot.bot.handlers.topics import create_topics_router
 def build_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
     router.include_router(start_router)
+    # Keep forward auto-save high priority so it still works while FSM flows are active.
+    router.include_router(create_forward_save_router(session_factory))
     router.include_router(create_menu_router(session_factory))
     router.include_router(create_topics_router(session_factory))
     router.include_router(create_add_router(session_factory))
@@ -28,7 +30,6 @@ def build_router(session_factory: async_sessionmaker) -> Router:
     router.include_router(create_entry_router(session_factory))
     router.include_router(create_list_router(session_factory))
     router.include_router(create_topic_manage_router(session_factory))
-    router.include_router(create_forward_save_router(session_factory))
     router.include_router(create_collections_router(session_factory))
     router.include_router(create_import_router(session_factory))
     router.include_router(create_backup_restore_router(session_factory))
