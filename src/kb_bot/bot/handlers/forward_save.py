@@ -1,5 +1,7 @@
-from aiogram import F, Router
+from aiogram import Router
+from aiogram.filters import Filter, StateFilter
 from aiogram.types import Message
+from aiogram.utils.text_decorations import html_decoration
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.core.forward_parsing import (
@@ -18,6 +20,23 @@ from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 from kb_bot.services.topic_service import TopicService
 
 
+class ForwardLikeFilter(Filter):
+    async def __call__(self, message: Message) -> bool:
+        return _is_forward_like_message(message)
+
+
+def _is_forward_like_message(message: Message) -> bool:
+    return any(
+        (
+            getattr(message, "forward_origin", None) is not None,
+            getattr(message, "forward_from", None) is not None,
+            getattr(message, "forward_from_chat", None) is not None,
+            getattr(message, "forward_sender_name", None) is not None,
+            bool(getattr(message, "is_automatic_forward", False)),
+        )
+    )
+
+
 def _origin_repr(message: Message) -> str | None:
     origin = getattr(message, "forward_origin", None)
     if origin is not None:
@@ -32,15 +51,25 @@ def _origin_repr(message: Message) -> str | None:
 def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
 
-    @router.message(F.forward_origin | F.forward_from | F.forward_from_chat)
+    @router.message(
+        StateFilter("*"),
+        ForwardLikeFilter(),
+    )
     async def save_forward_handler(message: Message) -> None:
         text = message.text or message.caption or ""
         entities = [*(message.entities or []), *(message.caption_entities or [])]
         original_url = extract_first_url(text, entities=entities)
         title = build_forward_title(text)
-        html_text = getattr(message, "html_text", None) or getattr(message, "caption_html", None)
+        html_text = None
+        if text and entities:
+            # Prefer entity-based HTML: it uses Telegram-safe tags and keeps emphasis/links.
+            html_text = html_decoration.unparse(text, entities)
+        if not html_text:
+            html_text = getattr(message, "html_text", None) or getattr(message, "caption_html", None)
         description = build_forward_description_html(html_text) or build_forward_description(text)
-        notes = build_forward_notes(None, _origin_repr(message))
+        # Keep original text in notes for note-mode dedup stability.
+        # Without this, different forwards from the same source can collide.
+        notes = build_forward_notes(text, _origin_repr(message))
 
         async with session_factory() as session:
             topics_repo = TopicsRepository(session)

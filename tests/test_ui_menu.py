@@ -21,6 +21,7 @@ from kb_bot.bot.handlers.menu import (
     _render_collection_result_screen,
     _render_entry_detail_screen,
     _render_entry_preview_screen,
+    _render_entry_preview_screen_html,
     _render_entry_list_screen,
     _render_search_results_screen,
     _render_stats_screen,
@@ -564,9 +565,25 @@ def test_render_entry_detail_screen_compacts_long_notes() -> None:
     text = _render_entry_detail_screen(detail)
     assert "Карточка записи:" in text
     assert "Заметки: line one line two" in text
+    assert "Текст:\nline one" in text
     assert "… " not in text
     assert "…" in text
     assert len(text) < 700
+
+
+def test_render_entry_detail_screen_uses_description_with_preserved_paragraphs() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="To Read",
+        topic_name="To Read",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="origin: channel",
+        description="<b>Title</b><br><br>First paragraph</p><p>Second paragraph",
+    )
+    text = _render_entry_detail_screen(detail)
+    assert "Текст:\nTitle\n\nFirst paragraph\n\nSecond paragraph" in text
 
 
 def test_render_entry_preview_screen_returns_body_only() -> None:
@@ -582,6 +599,56 @@ def test_render_entry_preview_screen_returns_body_only() -> None:
     )
     text = _render_entry_preview_screen(detail)
     assert text == "description body"
+
+
+def test_render_entry_preview_screen_html_escapes_plain_text() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes="1 < 2",
+        description=None,
+    )
+    text = _render_entry_preview_screen_html(detail)
+    assert text == "1 &lt; 2"
+
+
+def test_render_entry_preview_screen_html_strips_tags_for_safe_preview() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes=None,
+        description="<b>Bold</b><br><blockquote expandable>Long body</blockquote>",
+    )
+    text = _render_entry_preview_screen_html(detail)
+    assert "<b>Bold</b>" in text
+    assert "<blockquote>Long body</blockquote>" in text
+    assert "expandable" not in text
+    assert "Bold" in text
+    assert "Long body" in text
+
+
+def test_render_entry_preview_screen_html_removes_tg_emoji_tags() -> None:
+    detail = EntryDetail(
+        entry_id="11111111-1111-1111-1111-111111111111",
+        title="Entry title",
+        status_name="New",
+        topic_name="Python",
+        original_url="https://example.com",
+        normalized_url="https://example.com",
+        notes=None,
+        description='Prefix <tg-emoji emoji-id="1234567890">😀</tg-emoji> suffix',
+    )
+    text = _render_entry_preview_screen_html(detail)
+    assert "<tg-emoji" not in text
+    assert "Prefix 😀 suffix" in text
 
 
 def test_allowed_target_statuses_follow_status_machine() -> None:
@@ -934,11 +1001,46 @@ def test_topics_tree_keyboard_groups_subtopics_by_three_buttons_per_row() -> Non
         if any((button.callback_data or "").startswith((TOPIC_TOGGLE_PREFIX, TOPIC_VIEW_PREFIX)) for button in row)
     ]
 
-    # 1 row for parent + 2 rows for 4 subtopics (3 + 1).
+    # 1 row for parent toggle + 1 row actions + 2 rows for 4 subtopics (3 + 1).
     assert len(topic_rows_only) == 3
     assert len(topic_rows_only[0]) == 1
     assert len(topic_rows_only[1]) == 3
     assert len(topic_rows_only[2]) == 1
+
+
+def test_topics_tree_keyboard_expanded_parent_has_actions_row() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Neural Networks / AI",
+                full_path="neural_networks_ai",
+                level=0,
+            ),
+            True,
+            True,
+        ),
+        (
+            TopicDTO(
+                id="22222222-2222-2222-2222-222222222222",
+                name="Codex",
+                full_path="neural_networks_ai.codex",
+                level=1,
+            ),
+            False,
+            False,
+        ),
+    ]
+
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        has_prev_page=False,
+        has_next_page=False,
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert MENU_TOPICS in callbacks
 
 
 def test_topics_tree_keyboard_keeps_l0_leaf_as_separate_button() -> None:

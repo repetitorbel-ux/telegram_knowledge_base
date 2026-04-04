@@ -521,6 +521,19 @@ def build_topics_tree_keyboard(
                     ),
                 ]
             )
+            if expanded:
+                rows.append(
+                    [
+                        InlineKeyboardButton(
+                            text="Добавить подтему",
+                            callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic.id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="К списку тем",
+                            callback_data=MENU_TOPICS,
+                        ),
+                    ]
+                )
             continue
 
         if topic.level <= 0:
