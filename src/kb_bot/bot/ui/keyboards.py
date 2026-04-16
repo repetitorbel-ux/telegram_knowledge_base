@@ -8,6 +8,8 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_EDIT_FIELD_PREFIX,
+    ENTRY_EDIT_MENU_PREFIX,
     ENTRY_MOVE_CREATE_L0,
     ENTRY_MOVE_CREATE_L1,
     ENTRY_MOVE_PAGE_PREFIX,
@@ -226,7 +228,11 @@ def build_entry_detail_keyboard(
             InlineKeyboardButton(
                 text="Переместить в тему",
                 callback_data=f"{ENTRY_MOVE_MENU_PREFIX}{entry_id}",
-            )
+            ),
+            InlineKeyboardButton(
+                text="Редактировать",
+                callback_data=f"{ENTRY_EDIT_MENU_PREFIX}{entry_id}",
+            ),
         ]
     )
     if allowed_statuses:
@@ -241,6 +247,47 @@ def build_entry_detail_keyboard(
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
+    if back_callback and back_text:
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_edit_fields_keyboard(
+    entry_id: str,
+    *,
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="Заголовок",
+                callback_data=f"{ENTRY_EDIT_FIELD_PREFIX}{entry_id}:title",
+            ),
+            InlineKeyboardButton(
+                text="Ссылка",
+                callback_data=f"{ENTRY_EDIT_FIELD_PREFIX}{entry_id}:url",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="Описание",
+                callback_data=f"{ENTRY_EDIT_FIELD_PREFIX}{entry_id}:description",
+            ),
+            InlineKeyboardButton(
+                text="Заметки",
+                callback_data=f"{ENTRY_EDIT_FIELD_PREFIX}{entry_id}:notes",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="Назад к карточке",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+            )
+        ],
+    ]
     if back_callback and back_text:
         rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
@@ -331,6 +378,10 @@ def build_entry_preview_keyboard(
             InlineKeyboardButton(
                 text="Переместить",
                 callback_data=f"{ENTRY_MOVE_MENU_PREFIX}{entry_id}",
+            ),
+            InlineKeyboardButton(
+                text="Редактировать",
+                callback_data=f"{ENTRY_EDIT_MENU_PREFIX}{entry_id}",
             ),
             InlineKeyboardButton(
                 text="Открыть карточку",

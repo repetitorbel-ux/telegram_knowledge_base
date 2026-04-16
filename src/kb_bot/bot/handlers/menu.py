@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.bot.fsm.states import (
     AddEntryStates,
+    EntryEditStates,
     EntryMoveStates,
     GuidedSearchStates,
     GuidedImportStates,
@@ -27,6 +28,8 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_EDIT_FIELD_PREFIX,
+    ENTRY_EDIT_MENU_PREFIX,
     ENTRY_MOVE_CREATE_L0,
     ENTRY_MOVE_CREATE_L1,
     ENTRY_MOVE_MENU_PREFIX,
@@ -82,6 +85,7 @@ from kb_bot.bot.ui.keyboards import (
     build_entry_move_topic_keyboard,
     build_entry_delete_confirm_keyboard,
     build_post_entry_delete_keyboard,
+    build_entry_edit_fields_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
     build_entry_status_picker_keyboard,
@@ -102,6 +106,7 @@ from kb_bot.db.repositories.saved_views import SavedViewsRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
 from kb_bot.domain.errors import (
+    DuplicateEntryError,
     EntryNotFoundError,
     InvalidStatusTransitionError,
     StatusNotFoundError,
@@ -677,6 +682,142 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 str(detail.entry_id),
                 _allowed_target_statuses(detail.status_name),
                 entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_EDIT_MENU_PREFIX))
+    async def entry_edit_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_EDIT_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть редактирование.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            detail = await query_service.get_entry_detail(entry_id)
+
+        if detail is None:
+            await callback.answer("Запись не найдена.", show_alert=True)
+            return
+
+        await _clear_entry_edit_state(state)
+        await _show_screen(
+            callback,
+            _render_entry_detail_screen(detail)
+            + "\n\nВыберите поле для редактирования.\n"
+            "Для очистки значения отправьте `-` следующим сообщением.",
+            build_entry_edit_fields_keyboard(
+                str(detail.entry_id),
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_EDIT_FIELD_PREFIX))
+    async def entry_edit_pick_field(callback: CallbackQuery, state: FSMContext) -> None:
+        parsed = _parse_entry_edit_field_callback(callback.data)
+        if parsed is None:
+            await callback.answer("Не удалось выбрать поле для редактирования.", show_alert=True)
+            return
+        entry_id, field_name = parsed
+
+        state_data = await state.get_data()
+        _, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+
+        await state.update_data(
+            entry_back_callback=back_callback,
+            entry_back_text=back_text,
+            entry_edit_entry_id=str(entry_id),
+            entry_edit_field=field_name,
+        )
+        await state.set_state(EntryEditStates.waiting_value)
+
+        field_labels = {
+            "title": "Заголовок",
+            "url": "Ссылка",
+            "description": "Описание",
+            "notes": "Заметки",
+        }
+        label = field_labels.get(field_name, field_name)
+        await _show_screen(
+            callback,
+            f"Редактирование поля: {label}\n"
+            "Отправьте новое значение следующим сообщением.\n"
+            "Для очистки поля отправьте `-`.",
+            build_flow_navigation_keyboard(),
+        )
+
+    @router.message(EntryEditStates.waiting_value)
+    async def entry_edit_receive_value(message: Message, state: FSMContext) -> None:
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_edit_entry_id"))
+        field_name = state_data.get("entry_edit_field")
+        if entry_id is None or not isinstance(field_name, str):
+            await state.clear()
+            await message.answer(
+                "Сценарий редактирования устарел. Откройте карточку записи заново.",
+                reply_markup=build_main_menu_keyboard(),
+            )
+            return
+
+        if not message.text:
+            await message.answer(
+                "Ожидается текстовое значение. Отправьте текст или `-` для очистки поля.",
+                reply_markup=build_flow_navigation_keyboard(),
+            )
+            return
+
+        back_callback, back_text = _resolve_status_back_action(state_data)
+
+        async with session_factory() as session:
+            service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            query_service = QueryService(EntriesRepository(session))
+            try:
+                await service.update_field(entry_id, field_name, message.text)
+            except EntryNotFoundError:
+                await state.clear()
+                await message.answer("Запись не найдена.")
+                return
+            except DuplicateEntryError:
+                await message.answer(
+                    "Найден дубликат записи. Изменение отклонено.\n"
+                    "Попробуйте другое значение.",
+                    reply_markup=build_flow_navigation_keyboard(),
+                )
+                return
+            except ValueError:
+                await message.answer(
+                    "Некорректное значение для выбранного поля.\n"
+                    "Попробуйте снова или отправьте `-` для очистки.",
+                    reply_markup=build_flow_navigation_keyboard(),
+                )
+                return
+
+            detail = await query_service.get_entry_detail(entry_id)
+
+        await _clear_entry_edit_state(state)
+        await state.update_data(entry_back_callback=back_callback, entry_back_text=back_text)
+        if detail is None:
+            await message.answer("Запись обновлена, но карточку не удалось перечитать.")
+            return
+
+        await _safe_delete_message(message)
+        await message.answer(
+            _render_entry_detail_screen(detail) + "\n\nЗапись обновлена.",
+            reply_markup=build_entry_detail_keyboard(
+                str(detail.entry_id),
+                _allowed_target_statuses(detail.status_name),
                 back_callback=back_callback,
                 back_text=back_text,
             ),
@@ -1395,6 +1536,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/topic_rename <topic_uuid> <new_name>\n"
             "/topic_delete <topic_uuid|full_path|name>\n"
             "/entry_move <entry_uuid> <topic_uuid>\n"
+            "/entry_edit <entry_uuid> <field> <value>\n"
             "/stats\n"
             "/backup\n"
             "/backups\n\n"
@@ -1910,6 +2052,13 @@ async def _show_screen(
         await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
 
 
+async def _safe_delete_message(message: Message) -> None:
+    try:
+        await message.delete()
+    except TelegramBadRequest:
+        return
+
+
 def _render_stats_screen(stats: dict) -> str:
     status_lines = [f"- {k}: {v}" for k, v in sorted(stats["by_status"].items())]
     topic_lines = [f"- {k}: {v}" for k, v in sorted(stats["by_topic"].items())]
@@ -2170,6 +2319,23 @@ def _parse_status_update_callback(raw: str | None):
         return None
 
 
+def _parse_entry_edit_field_callback(raw: str | None):
+    import uuid
+
+    if not raw or not raw.startswith(ENTRY_EDIT_FIELD_PREFIX):
+        return None
+    payload = raw[len(ENTRY_EDIT_FIELD_PREFIX) :]
+    entry_part, separator, field_name = payload.partition(":")
+    if not separator or not field_name:
+        return None
+    if field_name not in {"title", "url", "description", "notes"}:
+        return None
+    try:
+        return uuid.UUID(entry_part), field_name
+    except ValueError:
+        return None
+
+
 def _parse_list_page_callback(raw: str | None):
     if not raw or not raw.startswith(LIST_PAGE_PREFIX):
         return None
@@ -2322,6 +2488,13 @@ async def _clear_entry_move_state(state: FSMContext) -> None:
     await state.update_data(
         entry_move_entry_id=None,
         entry_move_mode=None,
+    )
+
+
+async def _clear_entry_edit_state(state: FSMContext) -> None:
+    await state.update_data(
+        entry_edit_entry_id=None,
+        entry_edit_field=None,
     )
 
 

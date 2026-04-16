@@ -17,6 +17,15 @@ class EntriesRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
+    async def exists_by_dedup_hash_for_other(self, dedup_hash: str, entry_id: uuid.UUID) -> bool:
+        stmt = (
+            select(KnowledgeEntry.id)
+            .where(KnowledgeEntry.dedup_hash == dedup_hash, KnowledgeEntry.id != entry_id)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def create(self, entry: KnowledgeEntry) -> KnowledgeEntry:
         self.session.add(entry)
         await self.session.flush()

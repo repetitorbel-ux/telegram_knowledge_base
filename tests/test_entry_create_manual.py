@@ -220,3 +220,84 @@ def test_move_entry_to_topic_fails_on_missing_entry() -> None:
     topics_repo.get.assert_not_awaited()
     session.commit.assert_not_awaited()
     session.refresh.assert_not_awaited()
+
+
+def test_update_field_success_notes() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entry = types.SimpleNamespace(
+        id=entry_id,
+        title="Entry",
+        original_url="https://x.com",
+        normalized_url="https://x.com/",
+        primary_topic_id=uuid.uuid4(),
+        notes="old",
+        description="desc",
+        dedup_hash="old_hash",
+        saved_date=None,
+    )
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=(entry, "New")),
+        exists_by_dedup_hash_for_other=AsyncMock(return_value=False),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    result = run_coroutine(service.update_field(entry_id, "notes", "updated note"))
+
+    assert result.id == entry_id
+    assert result.notes == "updated note"
+    assert entry.notes == "updated note"
+    entries_repo.get_with_status.assert_awaited_once_with(entry_id)
+    entries_repo.exists_by_dedup_hash_for_other.assert_awaited_once()
+    session.commit.assert_awaited_once()
+    session.refresh.assert_awaited_once_with(entry)
+
+
+def test_update_field_fails_on_duplicate() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entry = types.SimpleNamespace(
+        id=entry_id,
+        title="Entry",
+        original_url="https://x.com",
+        normalized_url="https://x.com/",
+        primary_topic_id=uuid.uuid4(),
+        notes="old",
+        description="desc",
+        dedup_hash="old_hash",
+        saved_date=None,
+    )
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=(entry, "New")),
+        exists_by_dedup_hash_for_other=AsyncMock(return_value=True),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(DuplicateEntryError):
+        run_coroutine(service.update_field(entry_id, "title", "Another title"))
+
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
+
+
+def test_update_field_fails_on_missing_entry() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=None),
+        exists_by_dedup_hash_for_other=AsyncMock(),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(EntryNotFoundError):
+        run_coroutine(service.update_field(entry_id, "notes", "updated note"))
+
+    entries_repo.exists_by_dedup_hash_for_other.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()

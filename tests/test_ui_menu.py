@@ -6,6 +6,7 @@ os.environ.pop("SSLKEYLOGFILE", None)
 from kb_bot.bot.handlers.menu import (
     _allowed_target_statuses,
     _parse_entry_view_callback,
+    _parse_entry_edit_field_callback,
     _parse_entry_id_from_callback,
     _parse_list_page_callback,
     _parse_topic_entries_page_callback,
@@ -39,6 +40,8 @@ from kb_bot.bot.ui.callbacks import (
     COLLECTION_VIEW_PREFIX,
     ENTRY_DELETE_CONFIRM_PREFIX,
     ENTRY_DELETE_PREFIX,
+    ENTRY_EDIT_FIELD_PREFIX,
+    ENTRY_EDIT_MENU_PREFIX,
     ENTRY_MOVE_CREATE_L0,
     ENTRY_MOVE_CREATE_L1,
     ENTRY_MOVE_MENU_PREFIX,
@@ -86,6 +89,7 @@ from kb_bot.bot.ui.keyboards import (
     build_collections_keyboard,
     build_entry_delete_confirm_keyboard,
     build_entry_detail_keyboard,
+    build_entry_edit_fields_keyboard,
     build_entry_move_topic_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
@@ -426,8 +430,9 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
-    assert len(keyboard.inline_keyboard[0]) == 3
+    assert len(keyboard.inline_keyboard[0]) == 4
     assert len(keyboard.inline_keyboard[1]) == 2
 
 
@@ -440,7 +445,43 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+
+
+def test_entry_edit_fields_keyboard_contains_field_callbacks() -> None:
+    keyboard = build_entry_edit_fields_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        entry_back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_callback=f"{LIST_PAGE_PREFIX}new:1",
+        back_text="Назад к списку",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    assert f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:title" in callbacks
+    assert f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:url" in callbacks
+    assert f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:description" in callbacks
+    assert f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:notes" in callbacks
+    assert f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}new:1" in callbacks
+    for callback in callbacks:
+        if callback:
+            assert len(callback.encode("utf-8")) <= 64
+
+
+def test_parse_entry_edit_field_callback() -> None:
+    parsed = _parse_entry_edit_field_callback(
+        f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:notes"
+    )
+    assert parsed is not None
+    entry_id, field_name = parsed
+    assert str(entry_id) == "11111111-1111-1111-1111-111111111111"
+    assert field_name == "notes"
+
+
+def test_parse_entry_edit_field_callback_rejects_invalid_field() -> None:
+    parsed = _parse_entry_edit_field_callback(
+        f"{ENTRY_EDIT_FIELD_PREFIX}11111111-1111-1111-1111-111111111111:status"
+    )
+    assert parsed is None
 
 
 def test_entry_move_topic_keyboard_for_existing_topics_contains_create_and_pick_actions() -> None:

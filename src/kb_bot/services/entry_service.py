@@ -153,3 +153,48 @@ class EntryService:
             notes=entry.notes,
             saved_date=entry.saved_date,
         )
+
+    async def update_field(self, entry_id: uuid.UUID, field_name: str, raw_value: str) -> EntryDTO:
+        row = await self.entries_repo.get_with_status(entry_id)
+        if row is None:
+            raise EntryNotFoundError("entry not found")
+        entry, current_status_name = row
+
+        value = raw_value.strip()
+        if field_name == "title":
+            if value == "-":
+                raise ValueError("title cannot be empty")
+            title = value
+            if not title:
+                raise ValueError("title cannot be empty")
+            entry.title = title
+        elif field_name == "url":
+            entry.original_url = None if value == "-" else value or None
+        elif field_name == "description":
+            entry.description = None if value == "-" else value or None
+        elif field_name == "notes":
+            entry.notes = None if value == "-" else value or None
+        else:
+            raise ValueError("unsupported field")
+
+        normalized_url = normalize_url(entry.original_url)
+        dedup_hash = compute_dedup_hash(normalized_url, entry.title, entry.notes)
+        if await self.entries_repo.exists_by_dedup_hash_for_other(dedup_hash, entry.id):
+            raise DuplicateEntryError(dedup_hash)
+
+        entry.normalized_url = normalized_url
+        entry.dedup_hash = dedup_hash
+
+        await self.session.commit()
+        await self.session.refresh(entry)
+
+        return EntryDTO(
+            id=entry.id,
+            title=entry.title,
+            original_url=entry.original_url,
+            normalized_url=entry.normalized_url,
+            primary_topic_id=entry.primary_topic_id,
+            status_name=current_status_name,
+            notes=entry.notes,
+            saved_date=entry.saved_date,
+        )

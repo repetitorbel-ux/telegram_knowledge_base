@@ -25,3 +25,20 @@ def parse_entry_move_command(text: str | None) -> tuple[uuid.UUID, uuid.UUID] | 
     except ValueError:
         return None
     return entry_id, topic_id
+
+
+def parse_entry_edit_command(text: str | None) -> tuple[uuid.UUID, str, str] | None:
+    if not text:
+        return None
+    parts = text.split(maxsplit=3)
+    if len(parts) < 4:
+        return None
+    try:
+        entry_id = uuid.UUID(parts[1].strip())
+    except ValueError:
+        return None
+    field_name = parts[2].strip().lower()
+    if not field_name:
+        return None
+    value = parts[3].strip()
+    return entry_id, field_name, value
