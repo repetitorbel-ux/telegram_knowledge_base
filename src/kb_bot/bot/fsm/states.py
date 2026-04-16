@@ -24,5 +24,9 @@ class EntryMoveStates(StatesGroup):
     waiting_topic_name = State()
 
 
+class EntryEditStates(StatesGroup):
+    waiting_value = State()
+
+
 class GuidedImportStates(StatesGroup):
     waiting_document = State()
