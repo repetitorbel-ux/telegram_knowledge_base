@@ -1,0 +1,28 @@
+# llms.txt — AI Context for tg_db
+
+## What is this project?
+Single-user Telegram personal knowledge base bot. Saves and retrieves links, forwarded
+Telegram messages, and notes. Backend: Python + aiogram v3 + PostgreSQL.
+
+## Status
+Phase 1 complete (42/42 tasks done). Phase 2 not started.
+
+## Stack
+- Python 3.12+, aiogram v3, SQLAlchemy 2 async, Alembic, PostgreSQL 16+
+- Bot runs in long polling mode (no public webhook needed)
+
+## Vibe Layer Map (read these in order)
+1. LAYER-1/rules.md           — project invariants (read BEFORE making any change)
+2. LAYER-2/specs/architecture.md — components and service contracts
+3. LAYER-2/specs/domain-model.md — entities, DB schema, indexes
+4. LAYER-2/specs/behaviors.md    — user flows, bot commands, business rules
+5. LAYER-3/HANDOFF.md            — current session state (read FIRST each session)
+
+## Key Constraints (never violate)
+- Exactly 6 statuses: New, To Read, Important, Archive, Verified, Outdated
+- Single-user allowlist on every handler
+- Any DB schema change requires an Alembic migration
+- Secrets in .env only — never committed
+
+## Do NOT read
+- tz-tg_db.md  (archived source — superseded by LAYER-2/specs/)

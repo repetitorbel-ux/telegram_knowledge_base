@@ -1,5 +1,9 @@
 # Phase 1 Tasks
 
+> ✅ **Phase 1 complete.** All tasks below are done.
+> For current project state and Phase 2 queue → see `LAYER-3/HANDOFF.md`.
+
+
 - [x] Initialize local repository
 - [x] Create feature branch `feature/tg-kb-mvp-phase1`
 - [x] Add project skeleton and configuration files

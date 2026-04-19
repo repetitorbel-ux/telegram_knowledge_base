@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "db_tg_db": {
+      "command": "npx",
+      "args": [
+        "@bytebase/dbhub@latest",
+        "--transport",
+        "stdio",
+        "--dsn",
+        "postgres://postgres:postgres@localhost:55433/tg_kb"
+      ]
+    }
+  }
+}
