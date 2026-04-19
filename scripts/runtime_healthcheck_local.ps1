@@ -23,10 +23,6 @@ if (-not $latestLog) {
 }
 
 $age = (New-TimeSpan -Start $latestLog.LastWriteTime -End (Get-Date)).TotalMinutes
-if ($age -gt $MaxLogAgeMinutes) {
-    Write-Host "RUNTIME_CHECK: FAIL (latest log is stale: $([int]$age) min)"
-    exit 1
-}
 
 $tailLines = Get-Content -LiteralPath $latestLog.FullName -Tail 50 -ErrorAction SilentlyContinue
 $logHasPollingMarkers = $tailLines | Where-Object {
@@ -62,6 +58,12 @@ catch {
 }
 
 if (-not $botProcesses) {
+    if ($age -gt $MaxLogAgeMinutes) {
+        Write-Host "RUNTIME_CHECK: FAIL (latest log is stale: $([int]$age) min)"
+        Write-Host "Latest log: $($latestLog.FullName)"
+        exit 1
+    }
+
     if ($logHasPollingMarkers -and -not $logHasExitMarker) {
         Write-Host "RUNTIME_CHECK: PASS"
         Write-Host "Process count: unavailable (using fresh polling log fallback)"
