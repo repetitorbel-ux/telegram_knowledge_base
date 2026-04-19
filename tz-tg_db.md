@@ -1,3 +1,7 @@
+> ⚠️ **ARCHIVE — Do not use as source of truth.**
+> This is the original monolithic TZ document (Phase 1). Authoritative specs are in:
+> - `LAYER-2/specs/requirements.md`, `architecture.md`, `domain-model.md`, `behaviors.md`
+
 # Developer-Ready Specification and Implementation Artifacts for a Single-User Telegram Knowledge-Base Bot
 
 ## A. Technical Specification
