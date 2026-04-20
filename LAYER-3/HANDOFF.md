@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-19
-**Active branch:** `main` (latest merged: P2-001 runtime supervision)
+**Date:** 2026-04-20
+**Active branch:** `feature/p2-004-related-ux` (latest local delivery: P2-004 related UX + UI polish)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -29,11 +29,16 @@ All 42 tasks completed. Bot fully operational:
 See `LAYER-2/specs/phase2-features.md` for full backlog.
 
 Priority order (suggested):
-1. **P2-004** — Enhanced `/related` command UX.
+1. **P2-005** — Multi-topic support.
 2. **P2-002** — FastAPI admin (optional, low priority).
-3. **P2-005** — Multi-topic support.
 
 ### Latest Completed in Phase 2 ✅
+- **P2-004** — Enhanced `/related` UX completed on 2026-04-20:
+  - `/related` end-to-end flow implemented (service scoring + callbacks + repositories + DTO).
+  - `Похожие` removed from main menu; scenario is now entry-contextual (preview/card).
+  - Related screen simplified: compact header + buttons (no verbose score/reasons in text).
+  - UI polish: unified back labels; list screen de-duplicated; key button blocks re-laid for better mobile use.
+  - Test coverage added/updated (`tests/test_related_handler.py`, `tests/test_search_service.py`, `tests/test_ui_menu.py`).
 - **P2-001** — Production deployment baseline completed on 2026-04-19:
   - Windows Task Scheduler autostart + periodic watchdog (`tg-kb-bot-healthcheck`).
   - Auto-restart when bot process is missing.
@@ -52,5 +57,6 @@ Priority order (suggested):
 ## Session Resume Checklist
 1. Confirm current branch is NOT `main`.
 2. Run local healthcheck: `pwsh ./scripts/runtime_healthcheck_local.ps1`.
-3. Telegram smoke: `/start`, `/stats`, `/list limit=5`.
-4. Update this file with today's work at session end.
+3. Telegram smoke: `/start`, `/stats`, `/list limit=5`, preview -> `Похожие` -> pagination -> `Назад к записи`.
+4. Merge `feature/p2-004-related-ux` to `main` after final review.
+5. Start next feature: `P2-005` multi-topic support.
