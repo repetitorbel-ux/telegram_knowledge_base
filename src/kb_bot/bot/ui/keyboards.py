@@ -77,7 +77,7 @@ def build_main_menu_keyboard() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="Статистика", callback_data=MENU_STATS),
             ],
-            [InlineKeyboardButton(text="Подсказка по командам", callback_data=MENU_HELP)],
+            [InlineKeyboardButton(text="Помощь", callback_data=MENU_HELP)],
         ]
     )
 
@@ -152,8 +152,10 @@ def build_entry_results_keyboard(
     preview_callback_prefix: str | None = None,
     extra_rows: list[list[InlineKeyboardButton]] | None = None,
     merge_back_and_main: bool = False,
+    merge_pagination_and_back: bool = False,
 ) -> InlineKeyboardMarkup:
     rows = []
+    pagination_row: list[InlineKeyboardButton] | None = None
     for item in items:
         entry_id = _extract_entry_id(item)
         if entry_id is None:
@@ -179,7 +181,7 @@ def build_entry_results_keyboard(
         )
 
     if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
-        pagination_row: list[InlineKeyboardButton] = []
+        pagination_row = []
         if has_prev_page:
             pagination_row.append(
                 InlineKeyboardButton(
@@ -209,6 +211,10 @@ def build_entry_results_keyboard(
                     InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
                 ]
             )
+        elif merge_pagination_and_back and pagination_row:
+            pagination_row.append(InlineKeyboardButton(text=back_text, callback_data=back_callback))
+            rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+            return InlineKeyboardMarkup(inline_keyboard=rows)
         else:
             rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
             rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
@@ -239,27 +245,26 @@ def build_entry_detail_keyboard(
         ]
     )
     rows.append(
-        [
-            InlineKeyboardButton(
-                text="Похожие",
-                callback_data=f"{RELATED_PAGE_PREFIX}{entry_id}:0",
-            )
-        ]
+        [InlineKeyboardButton(text="Похожие", callback_data=f"{RELATED_PAGE_PREFIX}{entry_id}:0")]
     )
     if allowed_statuses:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="Изменить статус",
-                    callback_data=f"{ENTRY_STATUS_MENU_PREFIX}{entry_id}",
-                )
-            ]
+        rows[-1].append(
+            InlineKeyboardButton(
+                text="Изменить статус",
+                callback_data=f"{ENTRY_STATUS_MENU_PREFIX}{entry_id}",
+            )
         )
 
     if include_back_to_list:
         rows.append([InlineKeyboardButton(text="К быстрым спискам", callback_data=MENU_LIST)])
     if back_callback and back_text:
-        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_callback)])
+        rows.append(
+            [
+                InlineKeyboardButton(text=back_text, callback_data=back_callback),
+                InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+            ]
+        )
+        return InlineKeyboardMarkup(inline_keyboard=rows)
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -394,10 +399,6 @@ def build_entry_preview_keyboard(
                 text="Редактировать",
                 callback_data=f"{ENTRY_EDIT_MENU_PREFIX}{entry_id}",
             ),
-            InlineKeyboardButton(
-                text="Удалить запись",
-                callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
-            ),
         ],
         [
             InlineKeyboardButton(
@@ -408,7 +409,8 @@ def build_entry_preview_keyboard(
                 text="Открыть карточку",
                 callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
             ),
-        ]
+        ],
+        [InlineKeyboardButton(text="Удалить запись", callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}")],
     ]
     if back_callback and back_text:
         rows.append(

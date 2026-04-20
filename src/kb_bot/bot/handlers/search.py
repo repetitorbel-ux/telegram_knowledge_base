@@ -153,7 +153,8 @@ def _render_related_results_screen(
     page: int,
 ) -> str:
     page_hint = "" if page == 0 else f" (страница {page + 1})"
-    header = f"Похожие материалы для: {source_title}{page_hint}"
+    compact_title = _compact_related_source_title(source_title)
+    header = f"Похожие материалы для: {compact_title}{page_hint}"
     if not items:
         return header + "\n\nПохожих записей не найдено."
     return header
@@ -169,7 +170,7 @@ def _build_related_results_keyboard(
     return build_entry_results_keyboard(
         items,
         back_callback=f"{ENTRY_VIEW_PREFIX}{entry_id}",
-        back_text="К исходной записи",
+        back_text="Назад к записи",
         page=page,
         has_prev_page=page > 0,
         has_next_page=has_next_page,
@@ -184,3 +185,12 @@ def _build_related_results_keyboard(
             ]
         ],
     )
+
+
+def _compact_related_source_title(value: str, *, max_len: int = 90) -> str:
+    compact = " ".join((value or "").split())
+    if not compact:
+        return "-"
+    if len(compact) <= max_len:
+        return compact
+    return compact[: max_len - 1] + "…"

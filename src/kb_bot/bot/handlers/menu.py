@@ -1541,10 +1541,9 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await state.clear()
         await _show_screen(
             callback,
-            "Основной режим работы: через кнопки и меню.\n"
+            "Используйте меню и кнопки как основной режим работы.\n"
             "Сценарий `Похожие` запускается из просмотра записи или из карточки записи.\n\n"
-            "Текстовые команды остаются как расширенный/операторский режим.\n\n"
-            "Быстрые команды:\n"
+            "Команды остаются как дополнительный (операторский) режим:\n"
             "/start\n"
             "/add\n"
             "/search <query>\n"
@@ -1560,7 +1559,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/stats\n"
             "/backup\n"
             "/backups\n\n"
-            "Если вы в пошаговом сценарии, используйте кнопку `Отмена` или `/cancel`.",
+            "В пошаговом сценарии используйте кнопку `Отмена`.",
             build_home_navigation_keyboard(),
         )
 
@@ -1829,6 +1828,7 @@ async def _show_list_page(
             has_next_page=has_next_page,
             page_callback_prefix=f"{LIST_PAGE_PREFIX}{list_kind}:",
             entry_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+            merge_pagination_and_back=True,
         ),
     )
 
@@ -2180,13 +2180,7 @@ def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int
             "- добавить новую запись через меню."
         )
 
-    if title.startswith("Записи темы:"):
-        return f"{header}:\nВыберите запись кнопкой ниже."
-
-    lines = [header + ":"]
-    for item in items:
-        lines.append(f"- {item.title} [{item.status_name}] ({item.topic_name})")
-    return "\n".join(lines)
+    return f"{header}:\nВыберите запись кнопкой ниже."
 
 
 def _render_collection_result_screen(view: SavedViewDTO, items: list[EntryDetail]) -> str:

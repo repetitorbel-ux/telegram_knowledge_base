@@ -56,6 +56,28 @@ def test_render_related_results_screen_shows_header_only() -> None:
     assert text == "Похожие материалы для: PostgreSQL backup strategy"
 
 
+def test_render_related_results_screen_truncates_long_source_title() -> None:
+    items = [
+        RelatedEntryDTO(
+            id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+            title="PostgreSQL restore strategy",
+            status_name="New",
+            topic_name="Infrastructure",
+            score=12,
+            same_topic=True,
+            shared_tags_count=2,
+            title_similarity_points=2,
+            text_overlap_points=1,
+            saved_date=datetime.now(UTC),
+        )
+    ]
+    long_title = "A" * 140
+    text = _render_related_results_screen(long_title, items, page=0)
+    assert text.startswith("Похожие материалы для: ")
+    assert text.endswith("…")
+    assert len(text) < len("Похожие материалы для: " + long_title)
+
+
 def test_build_related_results_keyboard_contains_refresh_and_back_callbacks() -> None:
     items = [
         RelatedEntryDTO(
@@ -83,3 +105,5 @@ def test_build_related_results_keyboard_contains_refresh_and_back_callbacks() ->
     assert f"{RELATED_PAGE_PREFIX}22222222-2222-2222-2222-222222222222:0" in callbacks
     assert f"{RELATED_PAGE_PREFIX}22222222-2222-2222-2222-222222222222:2" in callbacks
     assert f"{ENTRY_VIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert "Назад к записи" in labels

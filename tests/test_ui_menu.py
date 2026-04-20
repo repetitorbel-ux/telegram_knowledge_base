@@ -137,7 +137,7 @@ def test_main_menu_keyboard_contains_expected_actions() -> None:
     assert "Похожие" not in callback_map
     assert callback_map["Импорт/экспорт"] == MENU_IMPORT_EXPORT
     assert callback_map["Бэкапы"] == MENU_BACKUPS
-    assert callback_map["Подсказка по командам"] == MENU_HELP
+    assert callback_map["Помощь"] == MENU_HELP
     assert callback_map["Статистика"] == MENU_STATS
 
 
@@ -225,7 +225,7 @@ def test_render_stats_screen_contains_summary() -> None:
     assert "Python: 4" in text
 
 
-def test_render_entry_list_screen_contains_titles() -> None:
+def test_render_entry_list_screen_uses_compact_prompt_for_non_topic_lists() -> None:
     items = [
         EntryDetail(
             entry_id="ignored",
@@ -238,8 +238,7 @@ def test_render_entry_list_screen_contains_titles() -> None:
         )
     ]
     text = _render_entry_list_screen(items, "Последние записи")
-    assert "Последние записи:" in text
-    assert "Example title [New] (Python)" in text
+    assert text == "Последние записи:\nВыберите запись кнопкой ниже."
 
 
 def test_render_topic_entries_list_screen_uses_compact_header() -> None:
@@ -361,6 +360,32 @@ def test_entry_results_keyboard_contains_pagination_callbacks() -> None:
     assert f"{LIST_PAGE_PREFIX}all:2" in callbacks
 
 
+def test_entry_results_keyboard_can_merge_pagination_and_back() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        back_callback=MENU_LIST,
+        back_text="Назад к фильтрам",
+        page=0,
+        has_prev_page=False,
+        has_next_page=True,
+        page_callback_prefix=f"{LIST_PAGE_PREFIX}all:",
+        merge_pagination_and_back=True,
+    )
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [f"{LIST_PAGE_PREFIX}all:1", MENU_LIST] in callbacks_by_row
+
+
 def test_entry_results_keyboard_contains_entry_back_context() -> None:
     items = [
         EntryDetail(
@@ -435,8 +460,9 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
-    assert len(keyboard.inline_keyboard[0]) == 3
+    assert len(keyboard.inline_keyboard[0]) == 2
     assert len(keyboard.inline_keyboard[1]) == 2
+    assert len(keyboard.inline_keyboard[2]) == 1
 
 
 def test_entry_detail_keyboard_contains_change_status_action() -> None:
@@ -451,6 +477,11 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [
+        f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0",
+        f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111",
+    ] in callbacks_by_row
 
 
 def test_entry_edit_fields_keyboard_contains_field_callbacks() -> None:
