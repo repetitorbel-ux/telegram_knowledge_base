@@ -40,6 +40,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_SEARCH,
     MENU_STATS,
     MENU_TOPIC_CREATE,
+    RELATED_PAGE_PREFIX,
     TOPIC_ENTRIES_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
     MENU_TOPICS,
@@ -64,14 +65,16 @@ def build_main_menu_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="Список", callback_data=MENU_LIST),
+            ],
+            [
                 InlineKeyboardButton(text="Темы", callback_data=MENU_TOPICS),
-            ],
-            [
                 InlineKeyboardButton(text="Коллекции", callback_data=MENU_COLLECTIONS),
-                InlineKeyboardButton(text="Импорт/экспорт", callback_data=MENU_IMPORT_EXPORT),
             ],
             [
+                InlineKeyboardButton(text="Импорт/экспорт", callback_data=MENU_IMPORT_EXPORT),
                 InlineKeyboardButton(text="Бэкапы", callback_data=MENU_BACKUPS),
+            ],
+            [
                 InlineKeyboardButton(text="Статистика", callback_data=MENU_STATS),
             ],
             [InlineKeyboardButton(text="Подсказка по командам", callback_data=MENU_HELP)],
@@ -235,6 +238,14 @@ def build_entry_detail_keyboard(
             ),
         ]
     )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="Похожие",
+                callback_data=f"{RELATED_PAGE_PREFIX}{entry_id}:0",
+            )
+        ]
+    )
     if allowed_statuses:
         rows.append(
             [
@@ -384,12 +395,18 @@ def build_entry_preview_keyboard(
                 callback_data=f"{ENTRY_EDIT_MENU_PREFIX}{entry_id}",
             ),
             InlineKeyboardButton(
-                text="Открыть карточку",
-                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
-            ),
-            InlineKeyboardButton(
                 text="Удалить запись",
                 callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="Похожие",
+                callback_data=f"{RELATED_PAGE_PREFIX}{entry_id}:0",
+            ),
+            InlineKeyboardButton(
+                text="Открыть карточку",
+                callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
             ),
         ]
     ]

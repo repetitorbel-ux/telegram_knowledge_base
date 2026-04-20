@@ -71,6 +71,7 @@ from kb_bot.bot.ui.callbacks import (
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    RELATED_PAGE_PREFIX,
     TOPIC_ENTRIES_PAGE_PREFIX,
     TOPICS_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
@@ -133,6 +134,7 @@ def test_main_menu_keyboard_contains_expected_actions() -> None:
         for button in row
     }
     assert callback_map["Добавить"] == MENU_ADD
+    assert "Похожие" not in callback_map
     assert callback_map["Импорт/экспорт"] == MENU_IMPORT_EXPORT
     assert callback_map["Бэкапы"] == MENU_BACKUPS
     assert callback_map["Подсказка по командам"] == MENU_HELP
@@ -431,8 +433,9 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
-    assert len(keyboard.inline_keyboard[0]) == 4
+    assert len(keyboard.inline_keyboard[0]) == 3
     assert len(keyboard.inline_keyboard[1]) == 2
 
 
@@ -446,6 +449,7 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     assert f"{ENTRY_STATUS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
 
 
@@ -832,6 +836,14 @@ def test_resolve_entry_back_action_for_collections() -> None:
     callback, text = _resolve_entry_back_action(MENU_COLLECTIONS)
     assert callback == MENU_COLLECTIONS
     assert text == "К коллекциям"
+
+
+def test_resolve_entry_back_action_for_related_page() -> None:
+    callback, text = _resolve_entry_back_action(
+        f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
+    )
+    assert callback == f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:2"
+    assert text == "Назад к похожим"
 
 
 def test_resolve_entry_back_action_for_unknown_callback_fallbacks_to_filters() -> None:
