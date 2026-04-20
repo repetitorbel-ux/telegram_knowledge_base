@@ -16,9 +16,22 @@ class EntryDTO:
 
 
 @dataclass(slots=True)
+class RelatedEntryDTO:
+    id: UUID
+    title: str
+    status_name: str
+    topic_name: str
+    score: int
+    same_topic: bool
+    shared_tags_count: int
+    title_similarity_points: int
+    text_overlap_points: int
+    saved_date: datetime
+
+
+@dataclass(slots=True)
 class TopicDTO:
     id: UUID
     name: str
     full_path: str
     level: int
-

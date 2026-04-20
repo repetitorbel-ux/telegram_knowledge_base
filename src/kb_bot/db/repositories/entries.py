@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kb_bot.db.orm.entry import KnowledgeEntry
 from kb_bot.db.orm.status import Status
+from kb_bot.db.orm.tag import KnowledgeEntryTag
 from kb_bot.db.orm.topic import Topic
 
 
@@ -91,6 +92,40 @@ class EntriesRepository:
         if row is None:
             return None
         return row[0], row[1], row[2]
+
+    async def get_entry_tag_ids(self, entry_id: uuid.UUID) -> set[uuid.UUID]:
+        stmt = select(KnowledgeEntryTag.tag_id).where(KnowledgeEntryTag.entry_id == entry_id)
+        result = await self.session.execute(stmt)
+        return {row[0] for row in result.all()}
+
+    async def get_tags_for_entries(self, entry_ids: list[uuid.UUID]) -> dict[uuid.UUID, set[uuid.UUID]]:
+        if not entry_ids:
+            return {}
+        stmt = select(KnowledgeEntryTag.entry_id, KnowledgeEntryTag.tag_id).where(
+            KnowledgeEntryTag.entry_id.in_(entry_ids)
+        )
+        result = await self.session.execute(stmt)
+        tags_by_entry: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for entry_id, tag_id in result.all():
+            tags = tags_by_entry.setdefault(entry_id, set())
+            tags.add(tag_id)
+        return tags_by_entry
+
+    async def get_related_candidates(
+        self,
+        entry_id: uuid.UUID,
+        limit: int,
+    ) -> list[tuple[KnowledgeEntry, str, str]]:
+        stmt = (
+            select(KnowledgeEntry, Status.display_name, Topic.name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .join(Topic, Topic.id == KnowledgeEntry.primary_topic_id)
+            .where(KnowledgeEntry.id != entry_id)
+            .order_by(KnowledgeEntry.saved_date.desc(), KnowledgeEntry.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return [(row[0], row[1], row[2]) for row in result.all()]
 
     async def list_entries(
         self,
