@@ -1,8 +1,8 @@
-# telegram-kb-bot (Phase 1)
+# telegram-kb-bot (Phase 2)
 
 Single-user Telegram KB bot MVP skeleton.
 
-## Implemented in Phase 1
+## Implemented
 
 - Local git repo + feature branch workflow
 - Project skeleton (`src/kb_bot`, `tests`)
@@ -14,7 +14,10 @@ Single-user Telegram KB bot MVP skeleton.
   - `/status <entry_uuid> <status name>` with transition validation
   - `/entry <entry_uuid>` (entry card/details)
   - `/entry_delete <entry_uuid>` (delete entry)
+  - `/related <entry_uuid>` (related materials for a concrete entry)
   - `/list [status=...] [topic=<uuid>] [limit=...]` (filtered listing)
+  - `/entry_topic_add <entry_uuid> <topic_uuid>` (add secondary topic to entry)
+  - `/entry_topic_remove <entry_uuid> <topic_uuid>` (remove secondary topic from entry)
   - `/topic_add`, `/topic_move`, and `/topic_rename` for dynamic topic tree edits, including nested subtopics
   - Forward message auto-save to topic `To read` (slug-stable routing) with status `To Read`
   - Saved views (collections): `/collection_add`, `/collections`, `/collection_run`
@@ -32,6 +35,7 @@ Single-user Telegram KB bot MVP skeleton.
   - `knowledge_entries`
   - `tags`
   - `knowledge_entry_tags`
+  - `knowledge_entry_topics` (secondary topics for entries)
 - Seed data:
   - statuses: `New`, `To Read`, `Important`, `Archive`, `Verified`, `Outdated`
   - root topics: `Java`, `Git`, `Neural Networks / AI`, `Infrastructure`, `Useful Channels`, `Learning`
@@ -84,6 +88,42 @@ Release smoke options:
   - `/topic_move <topic_uuid|topic_full_path|topic_name> <target_parent_uuid|target_parent_full_path|root>`
   - `/topic_rename <topic_uuid> <new_name>`
   - `/topic_delete <topic_uuid|topic_full_path|topic_name>`
+
+## Related Materials (P2-004)
+
+- Launch points:
+  - UI: open entry preview/card -> `Похожие`
+  - command: `/related <entry_uuid>`
+- Screen behavior:
+  - compact header: `Похожие материалы для: <title>`
+  - list of related entries as buttons
+  - navigation: pagination, refresh, back to source entry
+
+Example:
+1. Open `Список -> To Read`.
+2. Pick entry preview.
+3. Tap `Похожие`.
+4. Open one of related entries or return via `Назад к записи`.
+
+## Multi-Topic Entries (P2-005)
+
+- Every entry still has one primary topic.
+- Entry can additionally have multiple secondary topics.
+- Topic filtering (`/list ... topic=<uuid>`) returns entries where topic matches:
+  - primary topic subtree OR
+  - any secondary topic subtree.
+
+UI example:
+1. Open entry preview -> `Темы записи`.
+2. Tap `Добавить тему` and pick a topic.
+3. Entry appears under both primary and secondary topic filters.
+4. Remove via `Убрать: <topic>`.
+
+Command example:
+- Add secondary topic:
+  - `/entry_topic_add 11111111-1111-1111-1111-111111111111 22222222-2222-2222-2222-222222222222`
+- Remove secondary topic:
+  - `/entry_topic_remove 11111111-1111-1111-1111-111111111111 22222222-2222-2222-2222-222222222222`
 
 ## Git Process
 

@@ -12,7 +12,7 @@ KnowledgeEntry ──► Topic (primary_topic_id)
                ──► Status (status_id)
                ──► Source (source_id)
                ──◄► Tag (via knowledge_entry_tags)
-               ──◄► Topic (multi, via knowledge_entry_topics — future)
+               ──◄► Topic (multi, via knowledge_entry_topics)
                ──► Attachment
                ──► AuditLog (immutable)
 
@@ -47,6 +47,20 @@ The canonical record for one saved resource.
 | dedup_hash | TEXT | YES | UNIQUE. SHA-256 hex |
 | content_text | TEXT | optional | Extracted plain text |
 | content_tsv | TSVECTOR | computed | FTS trigger-maintained |
+
+### KnowledgeEntryTopic (Secondary Topics)
+Bridge table for many-to-many relation between entries and additional topics.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| entry_id | UUID | YES | FK → KnowledgeEntry (ON DELETE CASCADE) |
+| topic_id | UUID | YES | FK → Topic (ON DELETE CASCADE) |
+| created_at | TIMESTAMPTZ | YES | auto now() |
+
+Constraints:
+- Composite PK `(entry_id, topic_id)` (no duplicates).
+- Primary topic is still stored in `knowledge_entries.primary_topic_id`.
+- Secondary topics do not replace primary; they extend topic-based retrieval.
 
 ### Topic
 Dynamic tree. Never use hardcoded IDs.
