@@ -58,11 +58,14 @@ from kb_bot.bot.ui.callbacks import (
     MENU_IMPORT_START,
     MENU_LIST,
     MENU_MAIN,
+    MENU_RELATED,
     MENU_SEARCH,
     MENU_STATS,
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
     SEARCH_PAGE_PREFIX,
+    RELATED_PAGE_PREFIX,
+    RELATED_SOURCE_PAGE_PREFIX,
     TOPIC_ENTRIES_PAGE_PREFIX,
     TOPIC_CREATE_CHILD_PREFIX,
     TOPIC_DELETE_CONFIRM_PREFIX,
@@ -304,6 +307,23 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "Пример: `PostgreSQL backup`",
             build_flow_navigation_keyboard(),
         )
+
+    @router.callback_query(StateFilter("*"), F.data == MENU_RELATED)
+    async def menu_related(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.clear()
+        await _show_related_source_page(callback, session_factory, state=state, page=0)
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(RELATED_SOURCE_PAGE_PREFIX))
+    async def related_source_page(callback: CallbackQuery, state: FSMContext) -> None:
+        page = _parse_page_callback(callback.data, RELATED_SOURCE_PAGE_PREFIX)
+        if page is None:
+            await callback.answer("Не удалось открыть список записей.", show_alert=True)
+            return
+        if page < 0:
+            await callback.answer("Страница вне диапазона.", show_alert=True)
+            return
+
+        await _show_related_source_page(callback, session_factory, state=state, page=page)
 
     @router.message(GuidedSearchStates.waiting_query, F.text & ~F.text.startswith("/"))
     @router.message(GuidedSearchStates.showing_results, F.text & ~F.text.startswith("/"))
@@ -1521,10 +1541,9 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await state.clear()
         await _show_screen(
             callback,
-            "Сейчас бот поддерживает два режима работы:\n"
-            "- через кнопки и меню\n"
-            "- через текстовые команды\n\n"
-            "Быстрые команды:\n"
+            "Используйте меню и кнопки как основной режим работы.\n"
+            "Сценарий `Похожие` запускается из просмотра записи или из карточки записи.\n\n"
+            "Команды остаются как дополнительный (операторский) режим:\n"
             "/start\n"
             "/add\n"
             "/search <query>\n"
@@ -1540,7 +1559,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/stats\n"
             "/backup\n"
             "/backups\n\n"
-            "Если вы в пошаговом сценарии, используйте кнопку `Отмена` или `/cancel`.",
+            "В пошаговом сценарии используйте кнопку `Отмена`.",
             build_home_navigation_keyboard(),
         )
 
@@ -1809,6 +1828,42 @@ async def _show_list_page(
             has_next_page=has_next_page,
             page_callback_prefix=f"{LIST_PAGE_PREFIX}{list_kind}:",
             entry_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+            merge_pagination_and_back=True,
+        ),
+    )
+
+
+async def _show_related_source_page(
+    callback: CallbackQuery,
+    session_factory: async_sessionmaker,
+    *,
+    state: FSMContext | None = None,
+    page: int,
+) -> None:
+    if state is not None:
+        await state.update_data(
+            related_source_back_callback=f"{RELATED_SOURCE_PAGE_PREFIX}{page}",
+        )
+
+    items, has_next_page = await _load_entries(
+        session_factory,
+        status_name=None,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    await _show_screen(
+        callback,
+        _render_related_source_screen(items, page=page),
+        build_entry_results_keyboard(
+            items,
+            back_callback=MENU_MAIN,
+            back_text="В главное меню",
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=RELATED_SOURCE_PAGE_PREFIX,
+            preview_callback_prefix=RELATED_PAGE_PREFIX,
+            merge_back_and_main=True,
         ),
     )
 
@@ -2125,13 +2180,7 @@ def _render_entry_list_screen(items: list[EntryDetail], title: str, *, page: int
             "- добавить новую запись через меню."
         )
 
-    if title.startswith("Записи темы:"):
-        return f"{header}:\nВыберите запись кнопкой ниже."
-
-    lines = [header + ":"]
-    for item in items:
-        lines.append(f"- {item.title} [{item.status_name}] ({item.topic_name})")
-    return "\n".join(lines)
+    return f"{header}:\nВыберите запись кнопкой ниже."
 
 
 def _render_collection_result_screen(view: SavedViewDTO, items: list[EntryDetail]) -> str:
@@ -2170,6 +2219,21 @@ def _render_search_results_screen(items: list, query: str, *, page: int = 0) -> 
     return (
         f"Результаты поиска по запросу `{query}`{page_hint}:\n"
         "Выберите запись кнопкой ниже."
+    )
+
+
+def _render_related_source_screen(items: list[EntryDetail], *, page: int = 0) -> str:
+    page_hint = "" if page == 0 else f" (страница {page + 1})"
+    if not items:
+        return (
+            f"Похожие материалы{page_hint}:\n"
+            "Список записей пуст.\n\n"
+            "Добавьте записи через меню `Добавить` или импорт."
+        )
+    return (
+        f"Похожие материалы{page_hint}:\n"
+        "Выберите исходную запись кнопкой ниже.\n"
+        "После выбора бот покажет релевантные материалы."
     )
 
 
@@ -2402,6 +2466,8 @@ def _resolve_entry_back_action(entry_back_callback: str | None):
         return entry_back_callback, "Назад к списку"
     if entry_back_callback.startswith(SEARCH_PAGE_PREFIX):
         return entry_back_callback, "Назад к поиску"
+    if entry_back_callback.startswith(RELATED_PAGE_PREFIX):
+        return entry_back_callback, "Назад к похожим"
     if entry_back_callback.startswith(TOPIC_ENTRIES_PAGE_PREFIX):
         return entry_back_callback, "Назад к записям"
     if entry_back_callback.startswith(TOPIC_VIEW_PREFIX):

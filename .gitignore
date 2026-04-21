@@ -17,7 +17,6 @@ postgres_data/
 manual operation/
 logs/
 backups/
-SESSION_HANDOFF_*.md
 pytest-cache-files-*/
 instructions/
 .codex/config.toml
