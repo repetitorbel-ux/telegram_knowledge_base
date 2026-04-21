@@ -22,12 +22,12 @@
 - Inline navigation and compact related screen are implemented.
 
 ### P2-005: Multi-topic Support
-- Status: In progress (implementation branch).
+- Status: Delivered (2026-04-21).
 - `knowledge_entry_topics` table introduced for secondary topics.
 - Entry can have one primary and multiple secondary topics.
 - UI and command flows:
   - entry screen: `Темы записи` -> add/remove secondary topics;
-  - commands: `/entry_topic_add`, `/entry_topic_remove`.
+  - commands: `/entry_topic_add`, `/entry_topic_remove`, `/entry_topic_set_primary`.
 
 ### P2-006: Webhook Mode
 - Switch from long polling to webhook for lower latency and lower resource use.
