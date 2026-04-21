@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from kb_bot.db.repositories.entries import EntriesRepository
 
@@ -14,6 +14,7 @@ class EntryDetail:
     normalized_url: str | None
     notes: str | None
     description: str | None = None
+    secondary_topic_names: list[str] = field(default_factory=list)
 
 
 class QueryService:
@@ -25,6 +26,7 @@ class QueryService:
         if row is None:
             return None
         entry, status_name, topic_name = row
+        secondary_topics = await self.entries_repo.list_secondary_topics(entry_id)
         return EntryDetail(
             entry_id=entry.id,
             title=entry.title,
@@ -34,6 +36,7 @@ class QueryService:
             normalized_url=entry.normalized_url,
             notes=entry.notes,
             description=entry.description,
+            secondary_topic_names=[topic.name for topic in secondary_topics],
         )
 
     async def list_entries(

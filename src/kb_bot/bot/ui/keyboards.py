@@ -16,6 +16,9 @@ from kb_bot.bot.ui.callbacks import (
     ENTRY_MOVE_PARENT_PICK_PREFIX,
     ENTRY_MOVE_PICK_PREFIX,
     ENTRY_MOVE_MENU_PREFIX,
+    ENTRY_TOPICS_MENU_PREFIX,
+    ENTRY_TOPIC_ADD_MENU_PREFIX,
+    ENTRY_TOPIC_REMOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -245,6 +248,14 @@ def build_entry_detail_keyboard(
         ]
     )
     rows.append(
+        [
+            InlineKeyboardButton(
+                text="Темы записи",
+                callback_data=f"{ENTRY_TOPICS_MENU_PREFIX}{entry_id}",
+            )
+        ]
+    )
+    rows.append(
         [InlineKeyboardButton(text="Похожие", callback_data=f"{RELATED_PAGE_PREFIX}{entry_id}:0")]
     )
     if allowed_statuses:
@@ -410,6 +421,12 @@ def build_entry_preview_keyboard(
                 callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
             ),
         ],
+        [
+            InlineKeyboardButton(
+                text="Темы записи",
+                callback_data=f"{ENTRY_TOPICS_MENU_PREFIX}{entry_id}",
+            )
+        ],
         [InlineKeyboardButton(text="Удалить запись", callback_data=f"{ENTRY_DELETE_PREFIX}{entry_id}")],
     ]
     if back_callback and back_text:
@@ -471,7 +488,7 @@ def build_entry_move_topic_keyboard(
                     text=_render_topic_button_label(topic),
                     callback_data=(
                         f"{ENTRY_MOVE_PICK_PREFIX}{topic.id}"
-                        if mode == "pick_existing"
+                        if mode in {"pick_existing", "secondary_add"}
                         else f"{ENTRY_MOVE_PARENT_PICK_PREFIX}{topic.id}"
                     ),
                 )
@@ -505,6 +522,50 @@ def build_entry_move_topic_keyboard(
             )
         ]
     )
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_entry_topics_manage_keyboard(
+    entry_id: str,
+    *,
+    secondary_topic_options: list[TopicDTO],
+    entry_back_callback: str | None = None,
+    back_callback: str | None = None,
+    back_text: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="Добавить тему",
+                callback_data=f"{ENTRY_TOPIC_ADD_MENU_PREFIX}{entry_id}",
+            ),
+            InlineKeyboardButton(
+                text="Сменить основную тему",
+                callback_data=f"{ENTRY_MOVE_MENU_PREFIX}{entry_id}",
+            ),
+        ]
+    ]
+
+    for topic in secondary_topic_options[:8]:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Убрать: {topic.name}"[:64],
+                    callback_data=f"{ENTRY_TOPIC_REMOVE_PICK_PREFIX}{topic.id}",
+                )
+            ]
+        )
+
+    back_row: list[InlineKeyboardButton] = [
+        InlineKeyboardButton(
+            text="Назад к карточке",
+            callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
+        )
+    ]
+    if back_callback and back_text:
+        back_row.append(InlineKeyboardButton(text=back_text, callback_data=back_callback))
+    rows.append(back_row)
     rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

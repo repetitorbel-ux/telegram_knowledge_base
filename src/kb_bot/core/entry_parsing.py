@@ -27,6 +27,20 @@ def parse_entry_move_command(text: str | None) -> tuple[uuid.UUID, uuid.UUID] | 
     return entry_id, topic_id
 
 
+def parse_entry_topic_command(text: str | None) -> tuple[uuid.UUID, uuid.UUID] | None:
+    if not text:
+        return None
+    parts = text.split(maxsplit=2)
+    if len(parts) < 3:
+        return None
+    try:
+        entry_id = uuid.UUID(parts[1].strip())
+        topic_id = uuid.UUID(parts[2].strip())
+    except ValueError:
+        return None
+    return entry_id, topic_id
+
+
 def parse_entry_edit_command(text: str | None) -> tuple[uuid.UUID, str, str] | None:
     if not text:
         return None

@@ -36,6 +36,9 @@ from kb_bot.bot.ui.callbacks import (
     ENTRY_MOVE_PAGE_PREFIX,
     ENTRY_MOVE_PARENT_PICK_PREFIX,
     ENTRY_MOVE_PICK_PREFIX,
+    ENTRY_TOPICS_MENU_PREFIX,
+    ENTRY_TOPIC_ADD_MENU_PREFIX,
+    ENTRY_TOPIC_REMOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -89,6 +92,7 @@ from kb_bot.bot.ui.keyboards import (
     build_entry_delete_confirm_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_edit_fields_keyboard,
+    build_entry_topics_manage_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
     build_entry_status_picker_keyboard,
@@ -136,6 +140,15 @@ LIST_KIND_VERIFIED = "verified"
 _ACTIVE_RESTORE_CHAT_IDS: set[int] = set()
 _RESTORE_HEARTBEAT_INTERVAL_SEC = 60
 _RESTORE_UI_DIAGNOSTIC_MAX_LEN = 280
+
+
+def _render_topic_validation_error(exc: ValueError) -> str:
+    message = str(exc).strip().lower()
+    if message == "primary topic is already assigned":
+        return "Эта тема уже выбрана как основная."
+    if message == "cannot remove primary topic":
+        return "Нельзя удалить основную тему. Сначала смените основную тему записи."
+    return "Не удалось изменить темы записи."
 
 
 def create_menu_router(session_factory: async_sessionmaker) -> Router:
@@ -510,6 +523,123 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             page=0,
         )
 
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_TOPICS_MENU_PREFIX))
+    async def entry_topics_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_TOPICS_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть темы записи.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        await state.update_data(
+            entry_back_callback=entry_back_callback or back_callback,
+            entry_back_text=back_text,
+            entry_topic_menu_entry_id=str(entry_id),
+        )
+
+        async with session_factory() as session:
+            query_service = QueryService(EntriesRepository(session))
+            entry_service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            detail = await query_service.get_entry_detail(entry_id)
+            if detail is None:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+            secondary_topics = await entry_service.list_secondary_topics(entry_id)
+
+        await _show_screen(
+            callback,
+            _render_entry_topics_manage_screen(detail),
+            build_entry_topics_manage_keyboard(
+                str(entry_id),
+                secondary_topic_options=secondary_topics,
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_TOPIC_ADD_MENU_PREFIX))
+    async def entry_topic_add_menu(callback: CallbackQuery, state: FSMContext) -> None:
+        entry_id = _parse_entry_id_from_callback(callback.data, ENTRY_TOPIC_ADD_MENU_PREFIX)
+        if entry_id is None:
+            await callback.answer("Не удалось открыть выбор темы.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        raw_entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = raw_entry_back_callback or back_callback
+
+        await state.update_data(
+            entry_back_callback=entry_back_callback,
+            entry_back_text=back_text,
+            entry_move_entry_id=str(entry_id),
+            entry_move_mode="secondary_add",
+            entry_topic_menu_entry_id=str(entry_id),
+        )
+        await _clear_entry_move_draft_state(state)
+        await _show_entry_move_topics_page(
+            callback,
+            session_factory,
+            state=state,
+            entry_id=entry_id,
+            entry_back_callback=entry_back_callback,
+            mode="secondary_add",
+            page=0,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_TOPIC_REMOVE_PICK_PREFIX))
+    async def entry_topic_remove_pick(callback: CallbackQuery, state: FSMContext) -> None:
+        topic_id = _parse_entry_id_from_callback(callback.data, ENTRY_TOPIC_REMOVE_PICK_PREFIX)
+        if topic_id is None:
+            await callback.answer("Не удалось выбрать тему.", show_alert=True)
+            return
+
+        state_data = await state.get_data()
+        entry_id = _parse_uuid_string(state_data.get("entry_topic_menu_entry_id"))
+        if entry_id is None:
+            await callback.answer("Сценарий управления темами устарел. Откройте запись заново.", show_alert=True)
+            return
+
+        entry_back_callback, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        async with session_factory() as session:
+            entry_service = EntryService(
+                session=session,
+                entries_repo=EntriesRepository(session),
+                topics_repo=TopicsRepository(session),
+                statuses_repo=StatusesRepository(session),
+            )
+            query_service = QueryService(EntriesRepository(session))
+            try:
+                secondary_topics = await entry_service.remove_secondary_topic(entry_id, topic_id)
+            except EntryNotFoundError:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+            except ValueError as exc:
+                await callback.answer(_render_topic_validation_error(exc), show_alert=True)
+                return
+            detail = await query_service.get_entry_detail(entry_id)
+            if detail is None:
+                await callback.answer("Запись не найдена.", show_alert=True)
+                return
+
+        await _show_screen(
+            callback,
+            _render_entry_topics_manage_screen(detail) + "\n\nДополнительная тема удалена.",
+            build_entry_topics_manage_keyboard(
+                str(entry_id),
+                secondary_topic_options=secondary_topics,
+                entry_back_callback=entry_back_callback,
+                back_callback=back_callback,
+                back_text=back_text,
+            ),
+        )
+
     @router.callback_query(StateFilter("*"), F.data.startswith(ENTRY_MOVE_PAGE_PREFIX))
     async def entry_move_topics_page(callback: CallbackQuery, state: FSMContext) -> None:
         page = _parse_page_callback(callback.data, ENTRY_MOVE_PAGE_PREFIX)
@@ -527,7 +657,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             return
 
         mode = state_data.get("entry_move_mode")
-        if mode not in {"pick_existing", "pick_parent"}:
+        if mode not in {"pick_existing", "pick_parent", "secondary_add"}:
             mode = "pick_existing"
         raw_entry_back_callback, back_callback, _ = _resolve_entry_action_back_context(state_data)
         entry_back_callback = raw_entry_back_callback or back_callback
@@ -627,7 +757,11 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await callback.answer("Сценарий переноса устарел. Откройте запись заново.", show_alert=True)
             return
 
+        mode = state_data.get("entry_move_mode")
         _, back_callback, back_text = _resolve_entry_action_back_context(state_data)
+        entry_back_callback = state_data.get("entry_back_callback")
+        if not isinstance(entry_back_callback, str):
+            entry_back_callback = back_callback
 
         async with session_factory() as session:
             entry_service = EntryService(
@@ -639,17 +773,40 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             query_service = QueryService(EntriesRepository(session))
             topic_service = TopicService(TopicsRepository(session))
             try:
-                await entry_service.move_to_topic(entry_id, topic_id)
+                if mode == "secondary_add":
+                    secondary_topics = await entry_service.add_secondary_topic(entry_id, topic_id)
+                else:
+                    await entry_service.move_to_topic(entry_id, topic_id)
             except EntryNotFoundError:
                 await callback.answer("Запись не найдена.", show_alert=True)
                 return
             except TopicNotFoundError:
                 await callback.answer("Тема не найдена.", show_alert=True)
                 return
+            except ValueError as exc:
+                await callback.answer(_render_topic_validation_error(exc), show_alert=True)
+                return
             detail = await query_service.get_entry_detail(entry_id)
             topics = await topic_service.list_tree()
 
         await _clear_entry_move_state(state)
+        if mode == "secondary_add":
+            await state.update_data(entry_topic_menu_entry_id=str(entry_id))
+            if detail is None:
+                await callback.answer("Не удалось перечитать запись после обновления тем.", show_alert=True)
+                return
+            await _show_screen(
+                callback,
+                _render_entry_topics_manage_screen(detail) + "\n\nДополнительная тема добавлена.",
+                build_entry_topics_manage_keyboard(
+                    str(entry_id),
+                    secondary_topic_options=secondary_topics,
+                    entry_back_callback=entry_back_callback,
+                    back_callback=back_callback,
+                    back_text=back_text,
+                ),
+            )
+            return
 
         redirected = await _return_to_list_after_entry_delete(
             callback,
@@ -1555,6 +1712,8 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             "/topic_rename <topic_uuid> <new_name>\n"
             "/topic_delete <topic_uuid|full_path|name>\n"
             "/entry_move <entry_uuid> <topic_uuid>\n"
+            "/entry_topic_add <entry_uuid> <topic_uuid>\n"
+            "/entry_topic_remove <entry_uuid> <topic_uuid>\n"
             "/entry_edit <entry_uuid> <field> <value>\n"
             "/stats\n"
             "/backup\n"
@@ -1974,6 +2133,11 @@ async def _show_entry_move_topics_page(
             _render_entry_detail_screen(detail)
             + "\n\nВыберите родительскую тему для новой подтемы L1."
         )
+    elif mode == "secondary_add":
+        header = (
+            _render_entry_detail_screen(detail)
+            + "\n\nВыберите тему, которую нужно добавить как дополнительную."
+        )
     else:
         header = (
             _render_entry_detail_screen(detail)
@@ -2237,15 +2401,32 @@ def _render_related_source_screen(items: list[EntryDetail], *, page: int = 0) ->
     )
 
 
+def _render_entry_topics_manage_screen(detail: EntryDetail) -> str:
+    extra_topics = detail.secondary_topic_names
+    if not extra_topics:
+        extra_lines = "- нет"
+    else:
+        extra_lines = "\n".join(f"- {name}" for name in extra_topics)
+    return (
+        "Темы записи:\n"
+        f"ID: `{detail.entry_id}`\n"
+        f"Основная тема: {detail.topic_name}\n"
+        "Дополнительные темы:\n"
+        f"{extra_lines}"
+    )
+
+
 def _render_entry_detail_screen(detail: EntryDetail) -> str:
     compact_notes = _render_compact_card_notes(detail.notes)
     body = _render_card_body_text(detail.description, fallback=detail.notes)
+    extra_topics = ", ".join(detail.secondary_topic_names) if detail.secondary_topic_names else "-"
     return (
         "Карточка записи:\n"
         f"ID: `{detail.entry_id}`\n"
         f"Заголовок: {detail.title}\n"
         f"Статус: {detail.status_name}\n"
         f"Тема: {detail.topic_name}\n"
+        f"Доп. темы: {extra_topics}\n"
         f"URL: {detail.normalized_url or detail.original_url or '-'}\n"
         f"Заметки: {compact_notes}\n"
         f"Текст:\n{body}"
@@ -2554,6 +2735,7 @@ async def _clear_entry_move_state(state: FSMContext) -> None:
     await state.update_data(
         entry_move_entry_id=None,
         entry_move_mode=None,
+        entry_topic_menu_entry_id=None,
     )
 
 
