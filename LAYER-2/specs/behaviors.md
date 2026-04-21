@@ -5,7 +5,7 @@
 
 ---
 
-## Bot Commands (Phase 1 — All Implemented)
+## Bot Commands (Implemented)
 
 | Command | Purpose |
 |---|---|
@@ -19,6 +19,9 @@
 | `/status <uuid> <name>` | Change entry status |
 | `/entry <uuid>` | Entry details card |
 | `/entry_delete <uuid>` | Delete entry (with confirmation) |
+| `/related <entry_uuid>` | Related entries for one source entry |
+| `/entry_topic_add <entry_uuid> <topic_uuid>` | Add secondary topic to entry |
+| `/entry_topic_remove <entry_uuid> <topic_uuid>` | Remove secondary topic from entry |
 | `/collections`, `/collection_add`, `/collection_run` | Saved views management |
 | `/import` | Import via Telegram document (CSV/JSON) |
 | `/export` | Export with filters (CSV/JSON) |
@@ -76,6 +79,37 @@ Applied whenever `original_url` is present:
 - +0..+3 trigram similarity on `title` (pg_trgm)
 - +0..+3 FTS rank overlap on `description/notes`
 - Returns top 10, excluding self and exact duplicates.
+
+### Related UX Flow (P2-004)
+1. User opens entry preview or entry card.
+2. Taps `Похожие`.
+3. Bot shows compact header `Похожие материалы для: <source_title>`.
+4. User navigates related entry buttons and pagination.
+
+Example:
+- Source entry title: `PostgreSQL backup strategy`
+- Result header: `Похожие материалы для: PostgreSQL backup strategy`
+- Actions: `Далее`, `Обновить`, `Назад к записи`.
+
+### Multi-Topic Flow (P2-005)
+1. User opens entry preview/card -> `Темы записи`.
+2. User can:
+   - `Добавить тему` (secondary topic),
+   - `Убрать: <topic>` (remove secondary topic),
+   - `Сменить основную тему` (switch primary topic via move flow).
+
+Rules:
+- One primary topic is mandatory.
+- Secondary topic cannot duplicate primary topic.
+- Primary topic cannot be removed through secondary-topic removal flow.
+- Topic-based list filter matches both primary and secondary topic subtrees.
+
+Examples:
+- Add via UI: `Темы записи -> Добавить тему -> Infrastructure`.
+- Add via command:
+  - `/entry_topic_add 11111111-1111-1111-1111-111111111111 22222222-2222-2222-2222-222222222222`
+- Remove via command:
+  - `/entry_topic_remove 11111111-1111-1111-1111-111111111111 22222222-2222-2222-2222-222222222222`
 
 ### Topic Hierarchy Rules
 - Rename: updates `name`, recomputes `slug` and all descendant `full_path` / `full_path_ltree`.

@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-20
-**Active branch:** `feature/p2-004-related-ux` (latest local delivery: P2-004 related UX + UI polish)
+**Date:** 2026-04-21
+**Active branch:** `feature/p2-005-multi-topic-support` (latest local delivery: P2-005 multi-topic support)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -29,10 +29,16 @@ All 42 tasks completed. Bot fully operational:
 See `LAYER-2/specs/phase2-features.md` for full backlog.
 
 Priority order (suggested):
-1. **P2-005** — Multi-topic support.
-2. **P2-002** — FastAPI admin (optional, low priority).
+1. **P2-002** — FastAPI admin (optional, low priority).
 
 ### Latest Completed in Phase 2 ✅
+- **P2-005** — Multi-topic support completed on 2026-04-21:
+  - Added secondary-topic storage via `knowledge_entry_topics` + migration.
+  - Entry topic UI implemented from preview/card: `Темы записи`.
+  - Topic management actions implemented: add secondary topic, remove secondary topic, promote secondary topic to primary.
+  - Commands implemented and wired end-to-end: `/entry_topic_add`, `/entry_topic_remove`, `/entry_topic_set_primary`.
+  - UI polish based on manual checks: topic-management and navigation button rows optimized for Telegram mobile layout.
+  - Test coverage added/updated for repository, parsing, UI flows, migration, and handlers.
 - **P2-004** — Enhanced `/related` UX completed on 2026-04-20:
   - `/related` end-to-end flow implemented (service scoring + callbacks + repositories + DTO).
   - `Похожие` removed from main menu; scenario is now entry-contextual (preview/card).
@@ -57,6 +63,6 @@ Priority order (suggested):
 ## Session Resume Checklist
 1. Confirm current branch is NOT `main`.
 2. Run local healthcheck: `pwsh ./scripts/runtime_healthcheck_local.ps1`.
-3. Telegram smoke: `/start`, `/stats`, `/list limit=5`, preview -> `Похожие` -> pagination -> `Назад к записи`.
-4. Merge `feature/p2-004-related-ux` to `main` after final review.
-5. Start next feature: `P2-005` multi-topic support.
+3. Telegram smoke for topics: `/start`, `/list limit=5`, open preview -> `Темы записи` -> add/remove secondary topic -> `Сделать основной`.
+4. Telegram smoke for related: preview -> `Похожие` -> pagination -> `Назад к записи`.
+5. Start next feature: `P2-002` FastAPI admin surface (optional).

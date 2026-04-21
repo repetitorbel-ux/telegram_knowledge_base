@@ -170,6 +170,7 @@ def test_move_entry_to_topic_success() -> None:
     )
     entries_repo = types.SimpleNamespace(
         get_with_status=AsyncMock(return_value=(entry, "To Read")),
+        remove_secondary_topic=AsyncMock(return_value=False),
     )
     topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=target_topic_id)))
     statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
@@ -183,6 +184,7 @@ def test_move_entry_to_topic_success() -> None:
     assert entry.primary_topic_id == target_topic_id
     entries_repo.get_with_status.assert_awaited_once_with(entry_id)
     topics_repo.get.assert_awaited_once_with(target_topic_id)
+    entries_repo.remove_secondary_topic.assert_awaited_once_with(entry_id, target_topic_id)
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once_with(entry)
 
@@ -301,3 +303,59 @@ def test_update_field_fails_on_missing_entry() -> None:
     entries_repo.exists_by_dedup_hash_for_other.assert_not_awaited()
     session.commit.assert_not_awaited()
     session.refresh.assert_not_awaited()
+
+
+def test_add_secondary_topic_success() -> None:
+    entry_id = uuid.uuid4()
+    primary_topic_id = uuid.uuid4()
+    secondary_topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        get=AsyncMock(
+            return_value=types.SimpleNamespace(
+                id=entry_id,
+                primary_topic_id=primary_topic_id,
+            )
+        ),
+        add_secondary_topic=AsyncMock(),
+        list_secondary_topics=AsyncMock(
+            return_value=[
+                types.SimpleNamespace(
+                    id=secondary_topic_id,
+                    name="Infra",
+                    full_path="infrastructure",
+                    level=0,
+                )
+            ]
+        ),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=secondary_topic_id)))
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    result = run_coroutine(service.add_secondary_topic(entry_id, secondary_topic_id))
+
+    assert len(result) == 1
+    assert result[0].id == secondary_topic_id
+    entries_repo.add_secondary_topic.assert_awaited_once_with(entry_id, secondary_topic_id)
+    session.commit.assert_awaited_once()
+
+
+def test_remove_secondary_topic_rejects_primary() -> None:
+    entry_id = uuid.uuid4()
+    primary_topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(
+        get=AsyncMock(return_value=types.SimpleNamespace(id=entry_id, primary_topic_id=primary_topic_id)),
+        remove_secondary_topic=AsyncMock(),
+        list_secondary_topics=AsyncMock(return_value=[]),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    service = EntryService(session, entries_repo, topics_repo, statuses_repo)
+
+    with pytest.raises(ValueError):
+        run_coroutine(service.remove_secondary_topic(entry_id, primary_topic_id))
+
+    entries_repo.remove_secondary_topic.assert_not_awaited()
+    session.commit.assert_not_awaited()

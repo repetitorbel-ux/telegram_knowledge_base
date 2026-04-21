@@ -15,7 +15,7 @@ Saves and retrieves AI-focused resources (links, forwarded posts, notes) with dy
 
 ---
 
-## Functional Requirements (Phase 1 — Implemented)
+## Functional Requirements (Implemented)
 
 ### Core Capture
 - FR-001 Single Telegram bot, single 1:1 personal chat. No groups/multi-user.
@@ -42,6 +42,11 @@ Saves and retrieves AI-focused resources (links, forwarded posts, notes) with dy
 - FR-016 Exactly 6 statuses: New, To Read, Important, Archive, Verified, Outdated.
 - FR-017 Status transition rules enforced (see `behaviors.md`).
 - FR-018 Duplicate prevention: URL normalization + dedup hash.
+- FR-025 Related materials UI flow is available from entry preview/card and via `/related <entry_uuid>`.
+- FR-026 Entry supports multi-topic assignment:
+  - one primary topic,
+  - zero or more secondary topics via `knowledge_entry_topics`,
+  - topic filters include both primary and secondary topic matches.
 
 ### Portability & Ops
 - FR-019 Export entries to JSON and CSV.

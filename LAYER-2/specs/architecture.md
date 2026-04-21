@@ -47,6 +47,10 @@ Telegram ──► aiogram Bot Process ──► Application Services ──► 
 - `create_manual(payload) → KnowledgeEntryDTO`
 - `update_entry(entry_id, patch) → KnowledgeEntryDTO`
 - `set_status(entry_id, new_status_code) → KnowledgeEntryDTO` — validates allowed transitions.
+- `move_to_topic(entry_id, topic_id) → KnowledgeEntryDTO` — changes primary topic.
+- `add_secondary_topic(entry_id, topic_id) → list[TopicDTO]`
+- `remove_secondary_topic(entry_id, topic_id) → list[TopicDTO]`
+- `list_secondary_topics(entry_id) → list[TopicDTO]`
 
 ### TopicService
 - `list_tree() → TopicTreeDTO`

@@ -48,6 +48,9 @@ from kb_bot.bot.ui.callbacks import (
     ENTRY_MOVE_PAGE_PREFIX,
     ENTRY_MOVE_PARENT_PICK_PREFIX,
     ENTRY_MOVE_PICK_PREFIX,
+    ENTRY_TOPICS_MENU_PREFIX,
+    ENTRY_TOPIC_ADD_MENU_PREFIX,
+    ENTRY_TOPIC_REMOVE_PICK_PREFIX,
     ENTRY_STATUS_MENU_PREFIX,
     ENTRY_STATUS_PREFIX,
     ENTRY_VIEW_PREFIX,
@@ -92,6 +95,7 @@ from kb_bot.bot.ui.keyboards import (
     build_entry_detail_keyboard,
     build_entry_edit_fields_keyboard,
     build_entry_move_topic_keyboard,
+    build_entry_topics_manage_keyboard,
     build_post_entry_delete_keyboard,
     build_entry_preview_keyboard,
     build_entry_results_keyboard,
@@ -459,6 +463,7 @@ def test_build_entry_preview_keyboard_contains_open_and_back() -> None:
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
+    assert f"{ENTRY_TOPICS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{LIST_PAGE_PREFIX}new:1" in callbacks
     assert len(keyboard.inline_keyboard[0]) == 2
     assert len(keyboard.inline_keyboard[1]) == 2
@@ -476,6 +481,7 @@ def test_entry_detail_keyboard_contains_change_status_action() -> None:
     assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_EDIT_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{RELATED_PAGE_PREFIX}11111111-1111-1111-1111-111111111111:0" in callbacks
+    assert f"{ENTRY_TOPICS_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{ENTRY_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
     callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
     assert [
@@ -561,6 +567,34 @@ def test_entry_move_topic_keyboard_for_parent_pick_contains_parent_callbacks_onl
     assert ENTRY_MOVE_CREATE_L1 not in callbacks
     assert f"{ENTRY_MOVE_PICK_PREFIX}11111111-1111-1111-1111-111111111111" not in callbacks
     assert f"{ENTRY_MOVE_PARENT_PICK_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+
+
+def test_entry_topics_manage_keyboard_contains_add_and_remove_actions() -> None:
+    keyboard = build_entry_topics_manage_keyboard(
+        "11111111-1111-1111-1111-111111111111",
+        secondary_topic_options=[
+            TopicDTO(
+                id="22222222-2222-2222-2222-222222222222",
+                name="Infrastructure",
+                full_path="infrastructure",
+                level=0,
+            )
+        ],
+        entry_back_callback=f"{LIST_PAGE_PREFIX}all:0",
+        back_callback=MENU_LIST,
+        back_text="Назад к фильтрам",
+    )
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    assert "Сменить основную тему" in labels
+    assert f"{ENTRY_TOPIC_ADD_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_MOVE_MENU_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
+    assert f"{ENTRY_TOPIC_REMOVE_PICK_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [
+        f"{ENTRY_VIEW_PREFIX}11111111-1111-1111-1111-111111111111:{LIST_PAGE_PREFIX}all:0",
+        MENU_LIST,
+    ] in callbacks_by_row
 
 
 def test_entry_status_picker_keyboard_contains_status_actions() -> None:

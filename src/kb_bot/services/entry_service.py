@@ -9,7 +9,7 @@ from kb_bot.db.orm.entry import KnowledgeEntry
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
-from kb_bot.domain.dto import EntryDTO
+from kb_bot.domain.dto import EntryDTO, TopicDTO
 from kb_bot.domain.errors import (
     DuplicateEntryError,
     EntryNotFoundError,
@@ -140,6 +140,7 @@ class EntryService:
             raise TopicNotFoundError("topic not found")
 
         entry.primary_topic_id = topic.id
+        await self.entries_repo.remove_secondary_topic(entry_id, topic.id)
         await self.session.commit()
         await self.session.refresh(entry)
 
@@ -153,6 +154,48 @@ class EntryService:
             notes=entry.notes,
             saved_date=entry.saved_date,
         )
+
+    async def list_secondary_topics(self, entry_id: uuid.UUID) -> list[TopicDTO]:
+        entry = await self.entries_repo.get(entry_id)
+        if entry is None:
+            raise EntryNotFoundError("entry not found")
+
+        topics = await self.entries_repo.list_secondary_topics(entry_id)
+        return [
+            TopicDTO(
+                id=topic.id,
+                name=topic.name,
+                full_path=topic.full_path,
+                level=topic.level,
+            )
+            for topic in topics
+        ]
+
+    async def add_secondary_topic(self, entry_id: uuid.UUID, topic_id: uuid.UUID) -> list[TopicDTO]:
+        entry = await self.entries_repo.get(entry_id)
+        if entry is None:
+            raise EntryNotFoundError("entry not found")
+        if entry.primary_topic_id == topic_id:
+            raise ValueError("primary topic is already assigned")
+
+        topic = await self.topics_repo.get(topic_id)
+        if topic is None:
+            raise TopicNotFoundError("topic not found")
+
+        await self.entries_repo.add_secondary_topic(entry_id, topic.id)
+        await self.session.commit()
+        return await self.list_secondary_topics(entry_id)
+
+    async def remove_secondary_topic(self, entry_id: uuid.UUID, topic_id: uuid.UUID) -> list[TopicDTO]:
+        entry = await self.entries_repo.get(entry_id)
+        if entry is None:
+            raise EntryNotFoundError("entry not found")
+        if entry.primary_topic_id == topic_id:
+            raise ValueError("cannot remove primary topic")
+
+        await self.entries_repo.remove_secondary_topic(entry_id, topic_id)
+        await self.session.commit()
+        return await self.list_secondary_topics(entry_id)
 
     async def update_field(self, entry_id: uuid.UUID, field_name: str, raw_value: str) -> EntryDTO:
         row = await self.entries_repo.get_with_status(entry_id)

@@ -1,9 +1,12 @@
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from kb_bot.db.orm.entry import KnowledgeEntry
+from kb_bot.db.orm.entry_topic import KnowledgeEntryTopic
 from kb_bot.db.orm.status import Status
 from kb_bot.db.orm.tag import KnowledgeEntryTag
 from kb_bot.db.orm.topic import Topic
@@ -93,6 +96,38 @@ class EntriesRepository:
             return None
         return row[0], row[1], row[2]
 
+    async def list_secondary_topics(self, entry_id: uuid.UUID) -> list[Topic]:
+        stmt = (
+            select(Topic)
+            .join(KnowledgeEntryTopic, KnowledgeEntryTopic.topic_id == Topic.id)
+            .where(KnowledgeEntryTopic.entry_id == entry_id)
+            .order_by(Topic.full_path.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def add_secondary_topic(self, entry_id: uuid.UUID, topic_id: uuid.UUID) -> None:
+        stmt = (
+            insert(KnowledgeEntryTopic)
+            .values(entry_id=entry_id, topic_id=topic_id)
+            .on_conflict_do_nothing(index_elements=["entry_id", "topic_id"])
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+
+    async def remove_secondary_topic(self, entry_id: uuid.UUID, topic_id: uuid.UUID) -> bool:
+        stmt = select(KnowledgeEntryTopic).where(
+            KnowledgeEntryTopic.entry_id == entry_id,
+            KnowledgeEntryTopic.topic_id == topic_id,
+        )
+        result = await self.session.execute(stmt)
+        link = result.scalar_one_or_none()
+        if link is None:
+            return False
+        await self.session.delete(link)
+        await self.session.flush()
+        return True
+
     async def get_entry_tag_ids(self, entry_id: uuid.UUID) -> set[uuid.UUID]:
         stmt = select(KnowledgeEntryTag.tag_id).where(KnowledgeEntryTag.entry_id == entry_id)
         result = await self.session.execute(stmt)
@@ -150,10 +185,25 @@ class EntriesRepository:
             selected_topic_path = selected_topic_result.scalar_one_or_none()
             if selected_topic_path is None:
                 return []
+
+            secondary_topic = aliased(Topic)
+            secondary_exists = exists(
+                select(1)
+                .select_from(KnowledgeEntryTopic)
+                .join(secondary_topic, secondary_topic.id == KnowledgeEntryTopic.topic_id)
+                .where(
+                    KnowledgeEntryTopic.entry_id == KnowledgeEntry.id,
+                    or_(
+                        secondary_topic.full_path == selected_topic_path,
+                        secondary_topic.full_path.like(f"{selected_topic_path}.%"),
+                    ),
+                )
+            )
             stmt = stmt.where(
                 or_(
                     Topic.full_path == selected_topic_path,
                     Topic.full_path.like(f"{selected_topic_path}.%"),
+                    secondary_exists,
                 )
             )
 
