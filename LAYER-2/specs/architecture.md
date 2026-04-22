@@ -8,10 +8,11 @@
 ## System Overview
 
 Single-process async Python bot operating in long-polling mode.
-No public HTTP endpoint in MVP — Telegram delivers updates via `getUpdates`.
+Phase 2 adds an optional local FastAPI admin surface for health checks and export triggers.
 
 ```
 Telegram ──► aiogram Bot Process ──► Application Services ──► PostgreSQL
+FastAPI  ──► admin_api endpoints ──► Application Services ──► PostgreSQL
                                  └──────────────────────────► Local Storage (exports/backups)
 ```
 
@@ -22,6 +23,7 @@ Telegram ──► aiogram Bot Process ──► Application Services ──► 
 | Module | Responsibility |
 |---|---|
 | `bot/` | Telegram handlers, routers, FSM states, inline keyboards |
+| `admin_api/` | Optional FastAPI endpoints (`/health`, `/export`) for ops integration |
 | `domain/` | Immutable domain rules: status transitions, invariants |
 | `services/` | Application use-cases (transactions, validation, orchestration) |
 | `db/` | SQLAlchemy ORM models, repositories, Alembic migrations |
@@ -99,6 +101,6 @@ src/kb_bot/
 ## Security Baseline
 
 - Allowlist check: EVERY handler validates `from_user.id == TELEGRAM_ALLOWED_USER_ID`.
-- No HTTP listener in MVP (long polling only).
+- Bot uses long polling; optional local admin HTTP API requires `X-Admin-Token` for export trigger.
 - Soft-delete guarded by confirmation for destructive operations.
 - Structured JSON logs for all critical operations.

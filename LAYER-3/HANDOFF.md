@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-21
-**Active branch:** `feature/p2-005-multi-topic-support` (latest local delivery: P2-005 multi-topic support)
+**Date:** 2026-04-22
+**Active branch:** `feature/p2-002-fastapi-admin-surface` (latest local delivery: P2-002 FastAPI admin surface)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -29,9 +29,16 @@ All 42 tasks completed. Bot fully operational:
 See `LAYER-2/specs/phase2-features.md` for full backlog.
 
 Priority order (suggested):
-1. **P2-002** — FastAPI admin (optional, low priority).
+1. **P2-003** — Semantic search (**Design in progress; next active track**).
+2. **P2-006** — Webhook mode (**Deferred by operator decision on 2026-04-22; keep polling mode for now**).
 
 ### Latest Completed in Phase 2 ✅
+- **P2-002** — FastAPI admin surface completed on 2026-04-21:
+  - Added optional FastAPI module `kb_bot.admin_api`.
+  - Implemented `GET /health` with DB probe and Alembic revision reporting.
+  - Implemented authenticated `POST /export` trigger with `X-Admin-Token`.
+  - Added admin runtime config (`ADMIN_API_*`) and export storage path (`ADMIN_EXPORT_DIR`).
+  - Added API test coverage (`tests/test_admin_api.py`) and docs/env updates.
 - **P2-005** — Multi-topic support completed on 2026-04-21:
   - Added secondary-topic storage via `knowledge_entry_topics` + migration.
   - Entry topic UI implemented from preview/card: `Темы записи`.
@@ -63,6 +70,6 @@ Priority order (suggested):
 ## Session Resume Checklist
 1. Confirm current branch is NOT `main`.
 2. Run local healthcheck: `pwsh ./scripts/runtime_healthcheck_local.ps1`.
-3. Telegram smoke for topics: `/start`, `/list limit=5`, open preview -> `Темы записи` -> add/remove secondary topic -> `Сделать основной`.
-4. Telegram smoke for related: preview -> `Похожие` -> pagination -> `Назад к записи`.
-5. Start next feature: `P2-002` FastAPI admin surface (optional).
+3. FastAPI smoke: run `python -m kb_bot.admin_api.main`, check `GET /health`, then `POST /export` with `X-Admin-Token`.
+4. Telegram smoke for topics: `/start`, `/list limit=5`, open preview -> `Темы записи` -> add/remove secondary topic -> `Сделать основной`.
+5. Keep runtime in polling mode; do not start `P2-006` implementation until operator re-opens webhook track.

@@ -9,11 +9,26 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = Field(alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_user_id: int = Field(alias="TELEGRAM_ALLOWED_USER_ID")
+    telegram_mode: str = Field(default="polling", alias="TELEGRAM_MODE")
+    telegram_webhook_base_url: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_BASE_URL")
+    telegram_webhook_path: str = Field(default="/telegram/webhook", alias="TELEGRAM_WEBHOOK_PATH")
+    telegram_webhook_secret_token: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_SECRET_TOKEN")
+    telegram_webhook_host: str = Field(default="127.0.0.1", alias="TELEGRAM_WEBHOOK_HOST")
+    telegram_webhook_port: int = Field(default=8081, alias="TELEGRAM_WEBHOOK_PORT")
+    telegram_webhook_drop_pending_updates: bool = Field(
+        default=False,
+        alias="TELEGRAM_WEBHOOK_DROP_PENDING_UPDATES",
+    )
     database_url: str = Field(alias="DATABASE_URL")
     backup_dir: str = Field(default="backups", alias="BACKUP_DIR")
     pg_dump_bin: str = Field(default="pg_dump", alias="PG_DUMP_BIN")
     pg_restore_bin: str = Field(default="pg_restore", alias="PG_RESTORE_BIN")
     restore_timeout_sec: int = Field(default=1800, alias="RESTORE_TIMEOUT_SEC")
+    admin_api_enabled: bool = Field(default=False, alias="ADMIN_API_ENABLED")
+    admin_api_host: str = Field(default="127.0.0.1", alias="ADMIN_API_HOST")
+    admin_api_port: int = Field(default=8080, alias="ADMIN_API_PORT")
+    admin_api_token: str | None = Field(default=None, alias="ADMIN_API_TOKEN")
+    admin_export_dir: str = Field(default="exports", alias="ADMIN_EXPORT_DIR")
 
 
 @lru_cache

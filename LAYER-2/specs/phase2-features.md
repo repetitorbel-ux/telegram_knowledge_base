@@ -8,13 +8,17 @@
 ## Candidate Features / Status
 
 ### P2-002: FastAPI Admin Surface (Optional)
-- Read-only health endpoint + export trigger via HTTP.
-- Would allow monitoring without Telegram access.
-- Open decision: see `LAYER-2/decisions/open-questions.md`.
+- Status: Delivered (2026-04-21).
+- Optional local FastAPI app:
+  - `GET /health` returns DB/Alembic health snapshot.
+  - `POST /export` triggers export jobs over HTTP with token auth (`X-Admin-Token`).
+- Improves monitoring and external automation without Telegram UI dependency.
 
-### P2-003: Semantic Search (Deferred)
+### P2-003: Semantic Search (Planned — next active track)
+- Status: Design in progress (2026-04-22).
 - Embeddings (OpenAI or local model) + pgvector index.
-- Out of scope until basic ops is stable.
+- Scope for implementation is defined in `LAYER-2/specs/p2-semantic-search-design.md`.
+- Runtime baseline remains long polling; webhook track (`P2-006`) is deferred.
 
 ### P2-004: Enhanced Related Items UI
 - Status: Delivered.
@@ -30,8 +34,10 @@
   - commands: `/entry_topic_add`, `/entry_topic_remove`, `/entry_topic_set_primary`.
 
 ### P2-006: Webhook Mode
+- Status: Deferred by operator decision (2026-04-22).
 - Switch from long polling to webhook for lower latency and lower resource use.
 - Requires a public HTTPS endpoint (reverse proxy / tunnel).
+- Note: current runtime mode remains `polling`; webhook track is paused until explicitly resumed.
 
 ---
 

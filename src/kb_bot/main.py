@@ -5,6 +5,8 @@ import socket
 import sys
 from pathlib import Path
 
+import uvicorn
+
 def _sanitize_sslkeylogfile() -> None:
     value = os.environ.get("SSLKEYLOGFILE")
     if not value:
@@ -36,6 +38,7 @@ from kb_bot.core.config import get_settings
 from kb_bot.core.logging import setup_logging
 from kb_bot.db.engine import create_engine
 from kb_bot.db.session import create_session_factory
+from kb_bot.webhook_api.app import create_webhook_app
 
 # Windows + some Python distributions (e.g., Miniconda) may fail with
 # Proactor loop socketpair creation. Selector policy avoids that startup crash.
@@ -105,13 +108,62 @@ async def run_bot() -> None:
     session_factory = create_session_factory(engine)
 
     bot = Bot(token=settings.telegram_bot_token)
-    await _setup_chat_menu(bot, settings.telegram_allowed_user_id)
     dispatcher = Dispatcher()
     dispatcher.message.middleware(AllowlistMiddleware(settings.telegram_allowed_user_id))
     dispatcher.include_router(build_router(session_factory))
 
-    logger.info("bot_starting")
+    mode = settings.telegram_mode.strip().lower()
+    logger.info("bot_starting", extra={"telegram_mode": mode})
+
+    if mode == "webhook":
+        webhook_url = _build_webhook_url(settings.telegram_webhook_base_url, settings.telegram_webhook_path)
+
+        async def _on_startup() -> None:
+            await _setup_chat_menu(bot, settings.telegram_allowed_user_id)
+            try:
+                await bot.send_message(
+                    chat_id=settings.telegram_allowed_user_id,
+                    text=render_boot_text(),
+                    reply_markup=build_main_menu_keyboard(),
+                    disable_notification=True,
+                )
+            except Exception:
+                logger.exception("bot_restart_notification_failed")
+
+            await bot.set_webhook(
+                url=webhook_url,
+                secret_token=settings.telegram_webhook_secret_token,
+                drop_pending_updates=settings.telegram_webhook_drop_pending_updates,
+            )
+            logger.info("webhook_registered", extra={"webhook_url": webhook_url})
+
+        async def _on_shutdown() -> None:
+            try:
+                await bot.delete_webhook(drop_pending_updates=False)
+            finally:
+                await engine.dispose()
+                await bot.session.close()
+
+        app = create_webhook_app(
+            bot=bot,
+            dispatcher=dispatcher,
+            settings=settings,
+            on_startup=_on_startup,
+            on_shutdown=_on_shutdown,
+        )
+        uvicorn.run(
+            app,
+            host=settings.telegram_webhook_host,
+            port=settings.telegram_webhook_port,
+            log_level="info",
+        )
+        return
+
+    if mode != "polling":
+        raise ValueError("TELEGRAM_MODE must be either 'polling' or 'webhook'.")
+
     try:
+        await _setup_chat_menu(bot, settings.telegram_allowed_user_id)
         try:
             await bot.send_message(
                 chat_id=settings.telegram_allowed_user_id,
@@ -121,6 +173,7 @@ async def run_bot() -> None:
             )
         except Exception:
             logger.exception("bot_restart_notification_failed")
+        await bot.delete_webhook(drop_pending_updates=False)
         await dispatcher.start_polling(bot)
     finally:
         await engine.dispose()
@@ -129,6 +182,13 @@ async def run_bot() -> None:
 
 def main() -> None:
     asyncio.run(run_bot())
+
+
+def _build_webhook_url(base_url: str | None, path: str) -> str:
+    if not base_url:
+        raise ValueError("TELEGRAM_WEBHOOK_BASE_URL is required when TELEGRAM_MODE=webhook.")
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    return f"{base_url.rstrip('/')}{normalized_path}"
 
 
 def _build_main_menu_commands() -> list[BotCommand]:

@@ -18,7 +18,8 @@
 
 | Question | Options | Decision |
 |---|---|---|
-| FastAPI admin surface? | Bot-only vs. read-only health+export HTTP endpoint | TBD |
+| FastAPI admin surface? | Bot-only vs. read-only health+export HTTP endpoint | Delivered: optional local FastAPI (`/health`, `/export`) |
+| Webhook mode now or later? | Keep polling vs. migrate to webhook with public HTTPS | Deferred by operator on 2026-04-22; keep polling for now |
 | Restore strategy | In-place restore vs. restore-to-new-DB then swap DSN | TBD — new-DB is safer |
 | Semantic search | Out of MVP scope — would require embeddings + vector index | Deferred |
 

@@ -131,6 +131,16 @@ Examples:
 - JSON: full fidelity including IDs.
 - CSV: human-friendly (topic path as string, status display_name).
 - `filter_snapshot` stored in ExportJob for audit.
+- Phase 2 admin API adds HTTP export trigger:
+  - `POST /export` with `X-Admin-Token`,
+  - writes exported file to `ADMIN_EXPORT_DIR`,
+  - returns `job_id`, `total_records`, and stored file path.
+
+### FastAPI Admin Surface (P2-002)
+1. Operator runs `python -m kb_bot.admin_api.main`.
+2. `GET /health` returns DB connectivity and current Alembic revision.
+3. `POST /export` triggers same export pipeline as Telegram command flow.
+4. Invalid/missing token on `/export` returns `401`.
 
 ### Backup
 - `pg_dump -Fc` to timestamped file → compute sha256 → store BackupRecord.
