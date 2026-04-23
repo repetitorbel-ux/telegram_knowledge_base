@@ -6,6 +6,7 @@ Create Date: 2026-04-23
 """
 
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = "0008_embedding_dim_768"
@@ -15,6 +16,20 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    embedding_type = bind.execute(
+        text(
+            """
+            SELECT format_type(a.atttypid, a.atttypmod)
+            FROM pg_attribute a
+            WHERE a.attrelid = 'knowledge_entry_embeddings'::regclass
+              AND a.attname = 'embedding'
+            """
+        )
+    ).scalar()
+    if not embedding_type or not str(embedding_type).startswith("vector("):
+        return
+
     op.execute("DROP INDEX IF EXISTS idx_entry_embeddings_vector_cosine;")
     op.execute("TRUNCATE TABLE knowledge_entry_embeddings;")
     op.execute(
@@ -35,6 +50,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    embedding_type = bind.execute(
+        text(
+            """
+            SELECT format_type(a.atttypid, a.atttypmod)
+            FROM pg_attribute a
+            WHERE a.attrelid = 'knowledge_entry_embeddings'::regclass
+              AND a.attname = 'embedding'
+            """
+        )
+    ).scalar()
+    if not embedding_type or not str(embedding_type).startswith("vector("):
+        return
+
     op.execute("DROP INDEX IF EXISTS idx_entry_embeddings_vector_cosine;")
     op.execute("TRUNCATE TABLE knowledge_entry_embeddings;")
     op.execute(
