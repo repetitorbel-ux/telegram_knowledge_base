@@ -54,6 +54,11 @@ Single-user Telegram KB bot MVP skeleton.
    - `TELEGRAM_ALLOWED_USER_ID`
    - `DATABASE_URL`
    - `ADMIN_API_TOKEN` (if FastAPI admin surface is enabled)
+   - semantic search (optional):
+     - `SEMANTIC_SEARCH_ENABLED=true|false`
+     - `SEMANTIC_PROVIDER=openai|local`
+     - OpenAI provider: set `OPENAI_API_KEY`
+     - local provider: set `LOCAL_EMBEDDING_URL`
 3. Ensure PostgreSQL is available (choose one):
    - Docker mode:
      - `docker compose up -d postgres`
@@ -81,6 +86,11 @@ Release smoke options:
 
 - Docker DB mode (default): `pwsh ./scripts/release_smoke.ps1`
 - No-Docker DB mode: `pwsh ./scripts/release_smoke.ps1 -DatabaseMode external`
+
+Semantic embeddings maintenance:
+
+- Backfill/update embeddings for existing entries:
+  - `python -m kb_bot.jobs.semantic_backfill --batch-size 100`
 
 ## Run tests
 

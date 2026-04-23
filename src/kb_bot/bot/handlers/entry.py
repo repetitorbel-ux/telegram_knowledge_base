@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.bot.handlers.menu import _allowed_target_statuses, _render_entry_detail_screen
 from kb_bot.bot.ui.keyboards import build_entry_detail_keyboard
+from kb_bot.core.config import get_settings
 from kb_bot.core.entry_parsing import (
     parse_entry_command,
     parse_entry_edit_command,
@@ -15,6 +16,7 @@ from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
 from kb_bot.domain.errors import DuplicateEntryError, EntryNotFoundError, TopicNotFoundError
+from kb_bot.services.embedding_runtime import build_embedding_service
 from kb_bot.services.entry_service import EntryService
 from kb_bot.services.query_service import QueryService
 
@@ -30,6 +32,7 @@ def _render_topic_validation_error(exc: ValueError) -> str:
 
 def create_entry_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
+    settings = get_settings()
 
     @router.message(Command("entry"))
     async def entry_handler(message: Message) -> None:
@@ -67,6 +70,7 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             try:
                 await service.delete(entry_id)
@@ -90,6 +94,7 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -129,6 +134,7 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -171,6 +177,7 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -214,6 +221,7 @@ def create_entry_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:

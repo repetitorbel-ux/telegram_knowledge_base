@@ -73,6 +73,8 @@ from kb_bot.bot.ui.callbacks import (
     MENU_STATS,
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
+    SEARCH_QUICK_PREFIX,
+    SEARCH_REPEAT,
     SEARCH_PAGE_PREFIX,
     RELATED_PAGE_PREFIX,
     TOPIC_ENTRIES_PAGE_PREFIX,
@@ -104,6 +106,7 @@ from kb_bot.bot.ui.keyboards import (
     build_import_export_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_search_actions_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
     build_topic_entries_actions_rows,
@@ -156,6 +159,18 @@ def test_list_filters_keyboard_contains_quick_filters() -> None:
     keyboard = build_list_filters_keyboard()
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert LIST_NEW in callbacks
+
+
+def test_search_actions_keyboard_contains_quick_queries_and_optional_repeat() -> None:
+    keyboard_no_repeat = build_search_actions_keyboard(has_last_query=False)
+    callbacks_no_repeat = [button.callback_data for row in keyboard_no_repeat.inline_keyboard for button in row]
+    assert SEARCH_REPEAT not in callbacks_no_repeat
+    assert f"{SEARCH_QUICK_PREFIX}pg" in callbacks_no_repeat
+    assert f"{SEARCH_QUICK_PREFIX}ai" in callbacks_no_repeat
+
+    keyboard_repeat = build_search_actions_keyboard(has_last_query=True)
+    callbacks_repeat = [button.callback_data for row in keyboard_repeat.inline_keyboard for button in row]
+    assert SEARCH_REPEAT in callbacks_repeat
 
 
 def test_import_export_keyboard_contains_actions() -> None:

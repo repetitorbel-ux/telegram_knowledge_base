@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,9 @@ from kb_bot.domain.errors import (
 )
 from kb_bot.domain.status_machine import can_transition
 
+if TYPE_CHECKING:
+    from kb_bot.services.embedding_service import EmbeddingService
+
 
 @dataclass(slots=True)
 class CreateManualEntryPayload:
@@ -37,11 +41,13 @@ class EntryService:
         entries_repo: EntriesRepository,
         topics_repo: TopicsRepository,
         statuses_repo: StatusesRepository,
+        embedding_service: "EmbeddingService | None" = None,
     ) -> None:
         self.session = session
         self.entries_repo = entries_repo
         self.topics_repo = topics_repo
         self.statuses_repo = statuses_repo
+        self.embedding_service = embedding_service
 
     async def create_manual(self, payload: CreateManualEntryPayload) -> EntryDTO:
         title = payload.title.strip()
@@ -80,6 +86,7 @@ class EntryService:
         await self.entries_repo.create(entry)
         await self.session.commit()
         await self.session.refresh(entry)
+        await self._try_refresh_embedding(entry)
 
         return EntryDTO(
             id=entry.id,
@@ -154,6 +161,15 @@ class EntryService:
             notes=entry.notes,
             saved_date=entry.saved_date,
         )
+
+    async def _try_refresh_embedding(self, entry: KnowledgeEntry) -> None:
+        if self.embedding_service is None:
+            return
+        try:
+            await self.embedding_service.upsert_for_entry(entry)
+        except Exception:
+            # Embedding path is best-effort and must not break CRUD flows.
+            return
 
     async def list_secondary_topics(self, entry_id: uuid.UUID) -> list[TopicDTO]:
         entry = await self.entries_repo.get(entry_id)
@@ -230,6 +246,7 @@ class EntryService:
 
         await self.session.commit()
         await self.session.refresh(entry)
+        await self._try_refresh_embedding(entry)
 
         return EntryDTO(
             id=entry.id,

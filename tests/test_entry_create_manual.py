@@ -359,3 +359,61 @@ def test_remove_secondary_topic_rejects_primary() -> None:
 
     entries_repo.remove_secondary_topic.assert_not_awaited()
     session.commit.assert_not_awaited()
+
+
+def test_create_manual_refreshes_embedding_when_service_present() -> None:
+    topic_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entries_repo = types.SimpleNamespace(exists_by_dedup_hash=AsyncMock(return_value=False), create=AsyncMock())
+    topics_repo = types.SimpleNamespace(get=AsyncMock(return_value=types.SimpleNamespace(id=topic_id)))
+    statuses_repo = types.SimpleNamespace(
+        get_by_code=AsyncMock(return_value=types.SimpleNamespace(id=uuid.uuid4(), display_name="New")),
+        get_by_display_name=AsyncMock(),
+    )
+    embedding_service = types.SimpleNamespace(upsert_for_entry=AsyncMock(return_value=True))
+    service = EntryService(
+        session,
+        entries_repo,
+        topics_repo,
+        statuses_repo,
+        embedding_service=embedding_service,  # type: ignore[arg-type]
+    )
+
+    run_coroutine(service.create_manual(CreateManualEntryPayload(title="Entry", primary_topic_id=topic_id)))
+
+    embedding_service.upsert_for_entry.assert_awaited_once()
+
+
+def test_update_field_embedding_failure_does_not_break_update() -> None:
+    entry_id = uuid.uuid4()
+    session = types.SimpleNamespace(commit=AsyncMock(), refresh=AsyncMock())
+    entry = types.SimpleNamespace(
+        id=entry_id,
+        title="Entry",
+        original_url="https://x.com",
+        normalized_url="https://x.com/",
+        primary_topic_id=uuid.uuid4(),
+        notes="old",
+        description="desc",
+        dedup_hash="old_hash",
+        saved_date=None,
+    )
+    entries_repo = types.SimpleNamespace(
+        get_with_status=AsyncMock(return_value=(entry, "New")),
+        exists_by_dedup_hash_for_other=AsyncMock(return_value=False),
+    )
+    topics_repo = types.SimpleNamespace(get=AsyncMock())
+    statuses_repo = types.SimpleNamespace(get_by_code=AsyncMock(), get_by_display_name=AsyncMock())
+    embedding_service = types.SimpleNamespace(upsert_for_entry=AsyncMock(side_effect=RuntimeError("provider down")))
+    service = EntryService(
+        session,
+        entries_repo,
+        topics_repo,
+        statuses_repo,
+        embedding_service=embedding_service,  # type: ignore[arg-type]
+    )
+
+    result = run_coroutine(service.update_field(entry_id, "notes", "updated note"))
+
+    assert result.notes == "updated note"
+    embedding_service.upsert_for_entry.assert_awaited_once_with(entry)

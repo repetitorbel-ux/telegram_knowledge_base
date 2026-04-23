@@ -66,6 +66,8 @@ from kb_bot.bot.ui.callbacks import (
     MENU_STATS,
     MENU_TOPIC_CREATE,
     MENU_TOPICS,
+    SEARCH_QUICK_PREFIX,
+    SEARCH_REPEAT,
     SEARCH_PAGE_PREFIX,
     RELATED_PAGE_PREFIX,
     RELATED_SOURCE_PAGE_PREFIX,
@@ -86,6 +88,7 @@ from kb_bot.bot.ui.keyboards import (
     build_backup_restore_warning_keyboard,
     build_import_export_keyboard,
     build_collections_keyboard,
+    build_search_actions_keyboard,
     build_flow_navigation_keyboard,
     build_entry_detail_keyboard,
     build_entry_move_topic_keyboard,
@@ -104,10 +107,11 @@ from kb_bot.bot.ui.keyboards import (
     build_topic_entries_actions_rows,
     build_topics_tree_keyboard,
 )
-from kb_bot.core.config import get_settings
+from kb_bot.core.config import Settings, get_settings
 from kb_bot.core.list_parsing import ListFilters
-from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.backups import BackupsRepository
+from kb_bot.db.repositories.embeddings import EmbeddingsRepository
+from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.jobs import JobsRepository
 from kb_bot.db.repositories.saved_views import SavedViewsRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
@@ -124,6 +128,7 @@ from kb_bot.domain.dto import TopicDTO
 from kb_bot.domain.status_machine import ALLOWED_STATUS_TRANSITIONS
 from kb_bot.services.backup_service import BackupService
 from kb_bot.services.collection_service import CollectionService, SavedViewDTO
+from kb_bot.services.embedding_runtime import build_embedding_provider, build_embedding_service
 from kb_bot.services.entry_service import EntryService
 from kb_bot.services.export_service import ExportService
 from kb_bot.services.query_service import EntryDetail, QueryService
@@ -140,6 +145,12 @@ LIST_KIND_VERIFIED = "verified"
 _ACTIVE_RESTORE_CHAT_IDS: set[int] = set()
 _RESTORE_HEARTBEAT_INTERVAL_SEC = 60
 _RESTORE_UI_DIAGNOSTIC_MAX_LEN = 280
+_SEARCH_QUICK_QUERIES = {
+    "pg": "PostgreSQL",
+    "ai": "AI",
+    "backup": "backup",
+    "infra": "infrastructure",
+}
 
 
 def _render_topic_validation_error(exc: ValueError) -> str:
@@ -260,6 +271,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -311,14 +323,18 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
     @router.callback_query(StateFilter("*"), F.data == MENU_SEARCH)
     async def menu_search(callback: CallbackQuery, state: FSMContext) -> None:
+        state_data = await state.get_data()
+        last_query = (state_data.get("search_query") or "").strip()
         await state.clear()
+        if last_query:
+            await state.update_data(search_query=last_query)
         await state.set_state(GuidedSearchStates.waiting_query)
         await _show_screen(
             callback,
             "Режим поиска.\n"
-            "Отправьте поисковую строку следующим сообщением.\n\n"
+            "Нажмите быстрый запрос кнопкой ниже или отправьте свою строку сообщением.\n\n"
             "Пример: `PostgreSQL backup`",
-            build_flow_navigation_keyboard(),
+            build_search_actions_keyboard(has_last_query=bool(last_query)),
         )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_RELATED)
@@ -351,15 +367,18 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
 
         rows, has_next_page = await _load_search_results(
             session_factory,
+            settings=settings,
             query=query,
             page=0,
             page_size=PAGE_SIZE,
         )
 
         if not rows:
+            await state.set_state(GuidedSearchStates.waiting_query)
+            await state.update_data(search_query=query)
             await message.answer(
                 "Ничего не найдено. Отправьте другой запрос или отмените сценарий.",
-                reply_markup=build_flow_navigation_keyboard(),
+                reply_markup=build_search_actions_keyboard(has_last_query=True),
             )
             return
 
@@ -379,6 +398,40 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             ),
         )
 
+    @router.callback_query(StateFilter("*"), F.data == SEARCH_REPEAT)
+    async def search_repeat(callback: CallbackQuery, state: FSMContext) -> None:
+        state_data = await state.get_data()
+        query = (state_data.get("search_query") or "").strip()
+        if not query:
+            await callback.answer("Нет предыдущего запроса.", show_alert=True)
+            return
+
+        await _show_search_results_for_query(
+            callback,
+            state,
+            session_factory=session_factory,
+            settings=settings,
+            query=query,
+            page=0,
+        )
+
+    @router.callback_query(StateFilter("*"), F.data.startswith(SEARCH_QUICK_PREFIX))
+    async def search_quick(callback: CallbackQuery, state: FSMContext) -> None:
+        token = (callback.data or "")[len(SEARCH_QUICK_PREFIX) :]
+        query = _SEARCH_QUICK_QUERIES.get(token)
+        if not query:
+            await callback.answer("Не удалось распознать быстрый запрос.", show_alert=True)
+            return
+
+        await _show_search_results_for_query(
+            callback,
+            state,
+            session_factory=session_factory,
+            settings=settings,
+            query=query,
+            page=0,
+        )
+
     @router.callback_query(StateFilter("*"), F.data.startswith(SEARCH_PAGE_PREFIX))
     async def search_page(callback: CallbackQuery, state: FSMContext) -> None:
         page = _parse_page_callback(callback.data, SEARCH_PAGE_PREFIX)
@@ -395,28 +448,13 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
             await callback.answer("Сессия поиска завершена. Запустите поиск заново.", show_alert=True)
             return
 
-        rows, has_next_page = await _load_search_results(
-            session_factory,
+        await _show_search_results_for_query(
+            callback,
+            state,
+            session_factory=session_factory,
+            settings=settings,
             query=query,
             page=page,
-            page_size=PAGE_SIZE,
-        )
-
-        await state.set_state(GuidedSearchStates.showing_results)
-        await state.update_data(search_query=query)
-        await _show_screen(
-            callback,
-            _render_search_results_screen(rows, query, page=page),
-            build_entry_results_keyboard(
-                rows,
-                back_callback=MENU_SEARCH,
-                back_text="Назад к поиску",
-                page=page,
-                has_prev_page=page > 0,
-                has_next_page=has_next_page,
-                page_callback_prefix=SEARCH_PAGE_PREFIX,
-                entry_back_callback=f"{SEARCH_PAGE_PREFIX}{page}",
-            ),
         )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_LIST)
@@ -545,6 +583,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             detail = await query_service.get_entry_detail(entry_id)
             if detail is None:
@@ -613,6 +652,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -769,6 +809,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             topic_service = TopicService(TopicsRepository(session))
@@ -958,6 +999,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             query_service = QueryService(EntriesRepository(session))
             try:
@@ -1055,6 +1097,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             try:
                 await service.delete(entry_id)
@@ -1098,6 +1141,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=TopicsRepository(session),
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             try:
                 updated = await service.set_status(entry_id, status_name)
@@ -1725,6 +1769,50 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     return router
 
 
+async def _show_search_results_for_query(
+    callback: CallbackQuery,
+    state: FSMContext,
+    *,
+    session_factory: async_sessionmaker,
+    settings: Settings,
+    query: str,
+    page: int,
+) -> None:
+    rows, has_next_page = await _load_search_results(
+        session_factory,
+        settings=settings,
+        query=query,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    if not rows:
+        await state.set_state(GuidedSearchStates.waiting_query)
+        await state.update_data(search_query=query)
+        await _show_screen(
+            callback,
+            "Ничего не найдено. Выберите быстрый запрос или отправьте новый текст.",
+            build_search_actions_keyboard(has_last_query=True),
+        )
+        return
+
+    await state.set_state(GuidedSearchStates.showing_results)
+    await state.update_data(search_query=query)
+    await _show_screen(
+        callback,
+        _render_search_results_screen(rows, query, page=page),
+        build_entry_results_keyboard(
+            rows,
+            back_callback=MENU_SEARCH,
+            back_text="Назад к поиску",
+            page=page,
+            has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=SEARCH_PAGE_PREFIX,
+            entry_back_callback=f"{SEARCH_PAGE_PREFIX}{page}",
+        ),
+    )
+
+
 async def _send_restore_heartbeat(
     message: Message,
     *,
@@ -1849,6 +1937,7 @@ async def _load_entries(
 async def _load_search_results(
     session_factory: async_sessionmaker,
     *,
+    settings: Settings,
     query: str,
     page: int,
     page_size: int = PAGE_SIZE,
@@ -1858,7 +1947,16 @@ async def _load_search_results(
 
     offset = page * page_size
     async with session_factory() as session:
-        service = SearchService(EntriesRepository(session))
+        service = SearchService(
+            EntriesRepository(session),
+            embeddings_repo=EmbeddingsRepository(session),
+            embedding_provider=build_embedding_provider(settings),
+            semantic_enabled=settings.semantic_search_enabled,
+            semantic_provider_name=settings.semantic_provider,
+            semantic_model_name=settings.semantic_model,
+            semantic_alpha=settings.semantic_alpha,
+            semantic_min_score=settings.semantic_min_score,
+        )
         rows = await service.search(query=query, limit=page_size + 1, offset=offset)
 
     has_next_page = len(rows) > page_size

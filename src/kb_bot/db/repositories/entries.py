@@ -41,6 +41,16 @@ class EntriesRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_for_embedding(self, limit: int, offset: int = 0) -> list[KnowledgeEntry]:
+        stmt = (
+            select(KnowledgeEntry)
+            .order_by(KnowledgeEntry.updated_at.desc(), KnowledgeEntry.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def delete(self, entry: KnowledgeEntry) -> None:
         await self.session.delete(entry)
         await self.session.flush()
@@ -81,6 +91,24 @@ class EntriesRepository:
         if row is None:
             return None
         return row[0], row[1]
+
+    async def get_with_status_many(self, entry_ids: list[uuid.UUID]) -> list[tuple[KnowledgeEntry, str]]:
+        if not entry_ids:
+            return []
+        stmt = (
+            select(KnowledgeEntry, Status.display_name)
+            .join(Status, Status.id == KnowledgeEntry.status_id)
+            .where(KnowledgeEntry.id.in_(entry_ids))
+        )
+        result = await self.session.execute(stmt)
+        rows = [(row[0], row[1]) for row in result.all()]
+        by_id = {entry.id: (entry, status_name) for entry, status_name in rows}
+        ordered: list[tuple[KnowledgeEntry, str]] = []
+        for entry_id in entry_ids:
+            pair = by_id.get(entry_id)
+            if pair is not None:
+                ordered.append(pair)
+        return ordered
 
     async def get_detail(self, entry_id: uuid.UUID) -> tuple[KnowledgeEntry, str, str] | None:
         stmt = (

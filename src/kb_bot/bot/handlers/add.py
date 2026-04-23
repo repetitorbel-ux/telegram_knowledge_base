@@ -14,10 +14,12 @@ from kb_bot.bot.ui.keyboards import (
     build_flow_navigation_keyboard,
     build_main_menu_keyboard,
 )
+from kb_bot.core.config import get_settings
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
 from kb_bot.domain.errors import DuplicateEntryError, TopicNotFoundError
+from kb_bot.services.embedding_runtime import build_embedding_service
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 
 
@@ -128,12 +130,14 @@ async def _create_entry_from_state(
     topic_id: uuid.UUID,
 ) -> str:
     data = await state.get_data()
+    settings = get_settings()
     async with session_factory() as session:
         service = EntryService(
             session=session,
             entries_repo=EntriesRepository(session),
             topics_repo=TopicsRepository(session),
             statuses_repo=StatusesRepository(session),
+            embedding_service=build_embedding_service(session, settings),
         )
         payload = CreateManualEntryPayload(
             title=data.get("title", ""),

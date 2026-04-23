@@ -2,14 +2,34 @@ import re
 import uuid
 from difflib import SequenceMatcher
 
+from kb_bot.db.repositories.embeddings import EmbeddingsRepository
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.domain.dto import EntryDTO, RelatedEntryDTO
 from kb_bot.domain.errors import EntryNotFoundError
+from kb_bot.services.embedding_service import EmbeddingProvider
 
 
 class SearchService:
-    def __init__(self, entries_repo: EntriesRepository) -> None:
+    def __init__(
+        self,
+        entries_repo: EntriesRepository,
+        embeddings_repo: EmbeddingsRepository | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+        *,
+        semantic_enabled: bool = False,
+        semantic_provider_name: str = "openai",
+        semantic_model_name: str = "text-embedding-3-small",
+        semantic_alpha: float = 0.35,
+        semantic_min_score: float = 0.0,
+    ) -> None:
         self.entries_repo = entries_repo
+        self.embeddings_repo = embeddings_repo
+        self.embedding_provider = embedding_provider
+        self.semantic_enabled = semantic_enabled
+        self.semantic_provider_name = semantic_provider_name
+        self.semantic_model_name = semantic_model_name
+        self.semantic_alpha = max(0.0, min(1.0, semantic_alpha))
+        self.semantic_min_score = semantic_min_score
 
     async def search(
         self,
@@ -22,6 +42,8 @@ class SearchService:
             return []
 
         rows = await self.entries_repo.search(q, limit=limit, offset=offset)
+        rows = await self._load_semantic_candidates_when_keyword_empty(q, rows, limit=limit, offset=offset)
+        rows = await self._maybe_semantic_rerank(q, rows)
         return [
             EntryDTO(
                 id=entry.id,
@@ -35,6 +57,84 @@ class SearchService:
             )
             for entry, status_name in rows
         ]
+
+    async def _load_semantic_candidates_when_keyword_empty(
+        self,
+        query: str,
+        rows: list[tuple[object, str]],
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[tuple[object, str]]:
+        if rows:
+            return rows
+        if not self.semantic_enabled:
+            return rows
+        if self.embedding_provider is None or self.embeddings_repo is None:
+            return rows
+        if not hasattr(self.entries_repo, "get_with_status_many"):
+            return rows
+
+        try:
+            query_embedding = await self.embedding_provider.embed(query)
+            similar = await self.embeddings_repo.find_similar_entries(
+                query_embedding=query_embedding,
+                provider=self.semantic_provider_name,
+                model=self.semantic_model_name,
+                limit=max(limit + offset, limit),
+            )
+            if not similar:
+                return rows
+
+            candidate_ids = [entry_id for entry_id, _score in similar]
+            loaded_rows = await self.entries_repo.get_with_status_many(candidate_ids)
+            if not loaded_rows:
+                return rows
+
+            return loaded_rows[offset : offset + limit]
+        except Exception:
+            # Search must stay available even if semantic provider/repository fails.
+            return rows
+
+    async def _maybe_semantic_rerank(
+        self,
+        query: str,
+        rows: list[tuple[object, str]],
+    ) -> list[tuple[object, str]]:
+        if not rows:
+            return rows
+        if not self.semantic_enabled:
+            return rows
+        if self.embedding_provider is None or self.embeddings_repo is None:
+            return rows
+
+        try:
+            query_embedding = await self.embedding_provider.embed(query)
+            candidate_ids = [entry.id for entry, _ in rows]
+            semantic_scores = await self.embeddings_repo.score_candidates(
+                query_embedding=query_embedding,
+                provider=self.semantic_provider_name,
+                model=self.semantic_model_name,
+                candidate_ids=candidate_ids,
+            )
+            if not semantic_scores:
+                return rows
+
+            max_rank = max(len(rows) - 1, 1)
+            ranked: list[tuple[float, object, str]] = []
+            for index, (entry, status_name) in enumerate(rows):
+                semantic_score = semantic_scores.get(entry.id, 0.0)
+                if semantic_score < self.semantic_min_score:
+                    semantic_score = 0.0
+                keyword_score = 1.0 - (index / max_rank)
+                final_score = self.semantic_alpha * semantic_score + (1.0 - self.semantic_alpha) * keyword_score
+                ranked.append((final_score, entry, status_name))
+
+            ranked.sort(key=lambda row: row[0], reverse=True)
+            return [(entry, status_name) for _, entry, status_name in ranked]
+        except Exception:
+            # Search must stay available even if semantic provider/repository fails.
+            return rows
 
     async def related(
         self,

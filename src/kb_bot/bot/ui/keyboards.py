@@ -41,6 +41,8 @@ from kb_bot.bot.ui.callbacks import (
     MENU_LIST,
     MENU_MAIN,
     MENU_SEARCH,
+    SEARCH_QUICK_PREFIX,
+    SEARCH_REPEAT,
     MENU_STATS,
     MENU_TOPIC_CREATE,
     RELATED_PAGE_PREFIX,
@@ -98,6 +100,28 @@ def build_flow_navigation_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
         ]
     )
+
+
+def build_search_actions_keyboard(*, has_last_query: bool = False) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if has_last_query:
+        rows.append([InlineKeyboardButton(text="Повторить последний запрос", callback_data=SEARCH_REPEAT)])
+
+    rows.append(
+        [
+            InlineKeyboardButton(text="PostgreSQL", callback_data=f"{SEARCH_QUICK_PREFIX}pg"),
+            InlineKeyboardButton(text="AI", callback_data=f"{SEARCH_QUICK_PREFIX}ai"),
+        ]
+    )
+    rows.append(
+        [
+            InlineKeyboardButton(text="Backup", callback_data=f"{SEARCH_QUICK_PREFIX}backup"),
+            InlineKeyboardButton(text="Infrastructure", callback_data=f"{SEARCH_QUICK_PREFIX}infra"),
+        ]
+    )
+    rows.append([InlineKeyboardButton(text="Отмена", callback_data=MENU_CANCEL_FLOW)])
+    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def build_list_filters_keyboard() -> InlineKeyboardMarkup:
