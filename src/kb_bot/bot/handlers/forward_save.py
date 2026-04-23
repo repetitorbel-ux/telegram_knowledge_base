@@ -11,11 +11,13 @@ from kb_bot.core.forward_parsing import (
     build_forward_title,
     extract_first_url,
 )
+from kb_bot.core.config import get_settings
 from kb_bot.db.orm.topic import Topic
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
 from kb_bot.domain.errors import DuplicateEntryError, TopicConflictError, TopicNotFoundError
+from kb_bot.services.embedding_runtime import build_embedding_service
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 from kb_bot.services.topic_service import TopicService
 
@@ -50,6 +52,7 @@ def _origin_repr(message: Message) -> str | None:
 
 def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
+    settings = get_settings()
 
     @router.message(
         StateFilter("*"),
@@ -83,6 +86,7 @@ def create_forward_save_router(session_factory: async_sessionmaker) -> Router:
                 entries_repo=EntriesRepository(session),
                 topics_repo=topics_repo,
                 statuses_repo=StatusesRepository(session),
+                embedding_service=build_embedding_service(session, settings),
             )
             payload = CreateManualEntryPayload(
                 title=title,

@@ -55,6 +55,9 @@ Saves and retrieves AI-focused resources (links, forwarded posts, notes) with dy
 - FR-022 Track ImportJob and ExportJob run counts and status.
 - FR-023 Personal statistics dashboard (`/stats`).
 - FR-024 Production runtime supervision on Windows/Linux (Task Scheduler or systemd) with periodic healthcheck and auto-restart on bot process failure.
+- FR-027 Optional FastAPI admin surface:
+  - `GET /health` for DB/migration health,
+  - `POST /export` for authenticated export trigger (`X-Admin-Token`).
 
 ---
 

@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-21
-**Active branch:** `feature/p2-005-multi-topic-support` (latest local delivery: P2-005 multi-topic support)
+**Date:** 2026-04-23
+**Active branch:** `feature/p2-003-semantic-search-design` (P2-003 accepted and marked Delivered)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -29,9 +29,41 @@ All 42 tasks completed. Bot fully operational:
 See `LAYER-2/specs/phase2-features.md` for full backlog.
 
 Priority order (suggested):
-1. **P2-002** — FastAPI admin (optional, low priority).
+1. **P2-003** — Semantic search (**Delivered on 2026-04-23**).
+2. **P2-006** — Webhook mode (**Deferred by operator decision on 2026-04-22; keep polling mode for now**).
+
+### Latest Progress in Phase 2 (Current Session) ✅
+- **P2-003** — semantic search foundation delivered on 2026-04-23:
+  - Added migration `0007_semantic_embeddings` (`vector` extension + `knowledge_entry_embeddings` table + indexes).
+  - Added migration `0008_embedding_dim_768` for local Ollama mode (`vector(768)`).
+  - Added semantic runtime config flags (`SEMANTIC_*`, provider endpoint/key settings) to env and settings model.
+  - Added repository/service baseline for embeddings upsert/hash/similarity (`EmbeddingsRepository`, `EmbeddingService`).
+  - Added semantic rerank path in `SearchService` behind `SEMANTIC_SEARCH_ENABLED`, with fallback to keyword ordering on any semantic failure.
+  - Added embedding provider/runtime layer (`OpenAIEmbeddingProvider`, `LocalHTTPEmbeddingProvider`, runtime factory helpers).
+  - Wired best-effort embedding refresh into entry create/edit flows.
+  - Added semantic embeddings backfill CLI job: `python -m kb_bot.jobs.semantic_backfill`.
+  - Stability fixes for local mode:
+    - proxy-safe local HTTP calls (`trust_env=False`);
+    - retry/fallback handling for transient provider errors;
+    - context-length adaptive shortening for Ollama `HTTP 500` cases.
+  - Added/updated tests:
+    - `tests/test_semantic_embeddings_migration.py`
+    - `tests/test_embedding_providers.py`
+    - `tests/test_embedding_service.py`
+  - Acceptance evidence (2026-04-23):
+    - endpoint check PASS: local `/api/embeddings` responds with embedding vector;
+    - backfill sync PASS on real dataset (`processed=64`, stable `updated=0` after sync);
+    - DB consistency PASS: `total_entries=64`, `missing_embeddings=0`, `stale_embeddings=0`;
+    - Telegram search sanity PASS for keyword and semantic-style queries;
+    - fallback PASS when provider unavailable (search remains available via keyword path).
 
 ### Latest Completed in Phase 2 ✅
+- **P2-002** — FastAPI admin surface completed on 2026-04-21:
+  - Added optional FastAPI module `kb_bot.admin_api`.
+  - Implemented `GET /health` with DB probe and Alembic revision reporting.
+  - Implemented authenticated `POST /export` trigger with `X-Admin-Token`.
+  - Added admin runtime config (`ADMIN_API_*`) and export storage path (`ADMIN_EXPORT_DIR`).
+  - Added API test coverage (`tests/test_admin_api.py`) and docs/env updates.
 - **P2-005** — Multi-topic support completed on 2026-04-21:
   - Added secondary-topic storage via `knowledge_entry_topics` + migration.
   - Entry topic UI implemented from preview/card: `Темы записи`.
@@ -63,6 +95,7 @@ Priority order (suggested):
 ## Session Resume Checklist
 1. Confirm current branch is NOT `main`.
 2. Run local healthcheck: `pwsh ./scripts/runtime_healthcheck_local.ps1`.
-3. Telegram smoke for topics: `/start`, `/list limit=5`, open preview -> `Темы записи` -> add/remove secondary topic -> `Сделать основной`.
-4. Telegram smoke for related: preview -> `Похожие` -> pagination -> `Назад к записи`.
-5. Start next feature: `P2-002` FastAPI admin surface (optional).
+3. FastAPI smoke: run `python -m kb_bot.admin_api.main`, check `GET /health`, then `POST /export` with `X-Admin-Token`.
+4. Telegram smoke for topics: `/start`, `/list limit=5`, open preview -> `Темы записи` -> add/remove secondary topic -> `Сделать основной`.
+5. Keep runtime in polling mode; do not start `P2-006` implementation until operator re-opens webhook track.
+6. `P2-003` acceptance completed on 2026-04-23; keep evidence synced in handoff/spec files.

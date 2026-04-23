@@ -43,6 +43,36 @@ After successful smoke:
    - `/stats`
    - `/list limit=5`
 
+## Webhook Smoke (P2-006 mode)
+
+Use this section only when `TELEGRAM_MODE=webhook`.
+
+Preconditions:
+
+- bot process is running in webhook mode
+- `TELEGRAM_BOT_TOKEN` is available in environment or passed explicitly
+- `TELEGRAM_WEBHOOK_BASE_URL` points to a public HTTPS host
+
+Command:
+
+```powershell
+pwsh ./scripts/webhook_smoke.ps1 -WebhookBaseUrl "https://<public-host>" -WebhookPath "/telegram/webhook"
+```
+
+Expected PASS criteria:
+
+1. script prints `PASS: webhook URL is active in Telegram.`
+2. reported `info.url` equals `<WebhookBaseUrl><WebhookPath>`
+3. `last_error_message` is empty (or absent)
+
+Optional rollback-to-polling verification:
+
+```powershell
+pwsh ./scripts/webhook_smoke.ps1 -WebhookBaseUrl "https://<public-host>" -WebhookPath "/telegram/webhook" -RollbackToPolling
+```
+
+This performs `deleteWebhook` and confirms that `getWebhookInfo.result.url` is empty.
+
 Optional Linux production profile for runtime supervision/logging/alerts is documented in:
 
 - `docs/RUNTIME_RELIABILITY_RUNBOOK.md`
@@ -55,6 +85,8 @@ Optional Linux production profile for runtime supervision/logging/alerts is docu
 2. reinstall dependencies if required
 3. rerun migration only if rollback plan allows it
 4. restart bot process
+5. if rollback target uses polling, run Telegram API cleanup:
+   - `pwsh ./scripts/webhook_smoke.ps1 -WebhookBaseUrl "https://<public-host>" -RollbackToPolling`
 
 ### Data rollback
 
@@ -66,6 +98,7 @@ Follow `docs/RESTORE_RUNBOOK.md` and perform restore only with approved token fl
 - operator name
 - output of `pwsh ./scripts/release_smoke.ps1`
 - confirmation of Telegram smoke commands
+- webhook smoke output (for webhook mode releases)
 
 ## Troubleshooting
 

@@ -9,11 +9,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from kb_bot.bot.handlers.menu import _show_screen
 from kb_bot.bot.ui.callbacks import ENTRY_VIEW_PREFIX, RELATED_PAGE_PREFIX
 from kb_bot.bot.ui.keyboards import build_entry_results_keyboard
+from kb_bot.core.config import get_settings
 from kb_bot.core.entry_parsing import parse_entry_command
 from kb_bot.core.search_parsing import parse_search_query
+from kb_bot.db.repositories.embeddings import EmbeddingsRepository
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.domain.dto import RelatedEntryDTO
 from kb_bot.domain.errors import EntryNotFoundError
+from kb_bot.services.embedding_runtime import build_embedding_provider
 from kb_bot.services.query_service import QueryService
 from kb_bot.services.search_service import SearchService
 
@@ -22,6 +25,7 @@ RELATED_PAGE_SIZE = 5
 
 def create_search_router(session_factory: async_sessionmaker) -> Router:
     router = Router()
+    settings = get_settings()
 
     @router.message(Command("search"))
     async def search_handler(message: Message) -> None:
@@ -31,7 +35,16 @@ def create_search_router(session_factory: async_sessionmaker) -> Router:
             return
 
         async with session_factory() as session:
-            service = SearchService(EntriesRepository(session))
+            service = SearchService(
+                EntriesRepository(session),
+                embeddings_repo=EmbeddingsRepository(session),
+                embedding_provider=build_embedding_provider(settings),
+                semantic_enabled=settings.semantic_search_enabled,
+                semantic_provider_name=settings.semantic_provider,
+                semantic_model_name=settings.semantic_model,
+                semantic_alpha=settings.semantic_alpha,
+                semantic_min_score=settings.semantic_min_score,
+            )
             rows = await service.search(query, limit=10)
 
         if not rows:

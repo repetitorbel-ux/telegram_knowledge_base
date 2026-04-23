@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from kb_bot.core.config import get_settings
 from kb_bot.core.import_parsing import parse_csv_rows, parse_json_rows
 from kb_bot.db.orm.jobs import ImportJob
 from kb_bot.db.repositories.entries import EntriesRepository
@@ -7,6 +8,7 @@ from kb_bot.db.repositories.jobs import JobsRepository
 from kb_bot.db.repositories.statuses import StatusesRepository
 from kb_bot.db.repositories.topics import TopicsRepository
 from kb_bot.domain.errors import DuplicateEntryError
+from kb_bot.services.embedding_runtime import build_embedding_service
 from kb_bot.services.entry_service import CreateManualEntryPayload, EntryService
 
 
@@ -59,6 +61,7 @@ class ImportService:
             entries_repo=self.entries_repo,
             topics_repo=self.topics_repo,
             statuses_repo=self.statuses_repo,
+            embedding_service=build_embedding_service(self.session, get_settings()),
         )
 
         imported = 0

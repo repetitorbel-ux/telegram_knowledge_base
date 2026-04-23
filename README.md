@@ -26,6 +26,9 @@ Single-user Telegram KB bot MVP skeleton.
   - Backup/restore flow (`/backup`, `/backups`, `/restore_token`, `/restore`)
   - Guided backup restore UI with 2-step confirmation and runtime progress feedback
   - Personal dashboard metrics via `/stats`
+  - Optional FastAPI admin surface:
+    - `GET /health` (DB + migration health),
+    - `POST /export` (HTTP export trigger with token auth)
 - Single-user allowlist middleware
 - URL normalization + deterministic dedup hash
 - SQLAlchemy async setup + Alembic migration
@@ -50,6 +53,12 @@ Single-user Telegram KB bot MVP skeleton.
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_ALLOWED_USER_ID`
    - `DATABASE_URL`
+   - `ADMIN_API_TOKEN` (if FastAPI admin surface is enabled)
+   - semantic search (optional):
+     - `SEMANTIC_SEARCH_ENABLED=true|false`
+     - `SEMANTIC_PROVIDER=openai|local`
+     - OpenAI provider: set `OPENAI_API_KEY`
+     - local provider: set `LOCAL_EMBEDDING_URL`
 3. Ensure PostgreSQL is available (choose one):
    - Docker mode:
      - `docker compose up -d postgres`
@@ -62,12 +71,26 @@ Single-user Telegram KB bot MVP skeleton.
 5. Run migration:
    - `alembic upgrade head`
 6. Start bot:
+   - default (long polling): `TELEGRAM_MODE=polling`
+   - optional webhook mode:
+     - `TELEGRAM_MODE=webhook`
+     - `TELEGRAM_WEBHOOK_BASE_URL=https://<public-host>`
+     - `TELEGRAM_WEBHOOK_PATH=/telegram/webhook`
+     - optional: `TELEGRAM_WEBHOOK_SECRET_TOKEN=<secret>`
    - `python -m kb_bot.main`
+7. Optional: start FastAPI admin surface:
+   - set `ADMIN_API_ENABLED=true`
+   - `python -m kb_bot.admin_api.main`
 
 Release smoke options:
 
 - Docker DB mode (default): `pwsh ./scripts/release_smoke.ps1`
 - No-Docker DB mode: `pwsh ./scripts/release_smoke.ps1 -DatabaseMode external`
+
+Semantic embeddings maintenance:
+
+- Backfill/update embeddings for existing entries:
+  - `python -m kb_bot.jobs.semantic_backfill --batch-size 100`
 
 ## Run tests
 
@@ -125,6 +148,54 @@ Command example:
 - Remove secondary topic:
   - `/entry_topic_remove 11111111-1111-1111-1111-111111111111 22222222-2222-2222-2222-222222222222`
 
+## FastAPI Admin Surface (P2-002)
+
+- Start:
+  - `python -m kb_bot.admin_api.main`
+- Base URL:
+  - `http://<ADMIN_API_HOST>:<ADMIN_API_PORT>`
+- Auth:
+  - header `X-Admin-Token: <ADMIN_API_TOKEN>` for `POST /export`
+
+### `GET /health`
+
+Response example:
+
+```json
+{
+  "status": "ok",
+  "app_version": "0.1.0",
+  "db_ok": true,
+  "alembic_revision": "0006_entry_topics",
+  "checked_at": "2026-04-21T10:15:10.422377+00:00"
+}
+```
+
+### `POST /export`
+
+Request example:
+
+```json
+{
+  "export_format": "json",
+  "status_name": "To Read",
+  "limit": 20,
+  "include_file_base64": false
+}
+```
+
+Response example:
+
+```json
+{
+  "job_id": "11111111-1111-1111-1111-111111111111",
+  "export_format": "json",
+  "total_records": 42,
+  "stored_file": "exports/20260421_101510_11111111-1111-1111-1111-111111111111_export.json",
+  "content_base64": null
+}
+```
+
 ## Git Process
 
 - Team git cycle for this repository:
@@ -171,4 +242,4 @@ Command example:
 
 - Single-user operation only (allowlist owner flow)
 - Local-first operation (Windows + local PostgreSQL)
-- No webhook mode (long polling only)
+- Webhook mode requires a public HTTPS endpoint

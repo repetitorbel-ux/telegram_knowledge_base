@@ -98,3 +98,125 @@ def test_related_raises_when_source_entry_missing() -> None:
         raised = True
 
     assert raised is True
+
+
+def test_search_service_semantic_rerank_reorders_results() -> None:
+    entry_a = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="First",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    entry_b = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="Second",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    repo = types.SimpleNamespace(search=AsyncMock(return_value=[(entry_a, "New"), (entry_b, "Important")]))
+    embeddings_repo = types.SimpleNamespace(
+        score_candidates=AsyncMock(return_value={entry_a.id: 0.1, entry_b.id: 0.95})
+    )
+    embedding_provider = types.SimpleNamespace(embed=AsyncMock(return_value=[0.1, 0.2, 0.3]))
+    service = SearchService(
+        repo,
+        embeddings_repo=embeddings_repo,
+        embedding_provider=embedding_provider,
+        semantic_enabled=True,
+        semantic_alpha=0.8,
+    )
+
+    result = run_coroutine(service.search("query", limit=10, offset=0))
+
+    assert len(result) == 2
+    assert result[0].id == entry_b.id
+    embedding_provider.embed.assert_awaited_once_with("query")
+    embeddings_repo.score_candidates.assert_awaited_once()
+
+
+def test_search_service_semantic_failure_falls_back_to_keyword_order() -> None:
+    entry_a = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="First",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    entry_b = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="Second",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    repo = types.SimpleNamespace(search=AsyncMock(return_value=[(entry_a, "New"), (entry_b, "Important")]))
+    embeddings_repo = types.SimpleNamespace(score_candidates=AsyncMock(side_effect=RuntimeError("db issue")))
+    embedding_provider = types.SimpleNamespace(embed=AsyncMock(return_value=[0.1, 0.2, 0.3]))
+    service = SearchService(
+        repo,
+        embeddings_repo=embeddings_repo,
+        embedding_provider=embedding_provider,
+        semantic_enabled=True,
+        semantic_alpha=0.8,
+    )
+
+    result = run_coroutine(service.search("query", limit=10, offset=0))
+
+    assert len(result) == 2
+    assert result[0].id == entry_a.id
+    assert result[1].id == entry_b.id
+
+
+def test_search_service_semantic_recall_when_keyword_empty() -> None:
+    entry_a = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="Token-based restore safety",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    entry_b = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        title="Backup checksum verification",
+        original_url=None,
+        normalized_url=None,
+        primary_topic_id=uuid.uuid4(),
+        notes=None,
+        saved_date=datetime.now(UTC),
+    )
+    repo = types.SimpleNamespace(
+        search=AsyncMock(return_value=[]),
+        get_with_status_many=AsyncMock(return_value=[(entry_a, "New"), (entry_b, "To Read")]),
+    )
+    embeddings_repo = types.SimpleNamespace(
+        find_similar_entries=AsyncMock(return_value=[(entry_a.id, 0.92), (entry_b.id, 0.75)]),
+        score_candidates=AsyncMock(return_value={entry_a.id: 0.92, entry_b.id: 0.75}),
+    )
+    embedding_provider = types.SimpleNamespace(embed=AsyncMock(return_value=[0.1, 0.2, 0.3]))
+    service = SearchService(
+        repo,
+        embeddings_repo=embeddings_repo,
+        embedding_provider=embedding_provider,
+        semantic_enabled=True,
+        semantic_alpha=0.8,
+    )
+
+    result = run_coroutine(service.search("токен для восстановления базы", limit=10, offset=0))
+
+    assert len(result) == 2
+    assert result[0].id == entry_a.id
+    assert result[1].id == entry_b.id
+    embeddings_repo.find_similar_entries.assert_awaited_once()
+    repo.get_with_status_many.assert_awaited_once()
