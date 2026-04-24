@@ -1,0 +1,18 @@
+# .codex/config.toml
+# Project-scoped Codex configuration. Codex loads project config only for trusted repos.
+
+model = "o4-mini"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+model_reasoning_effort = "high"
+personality = "pragmatic"
+
+[shell_environment_policy]
+include_only = ["PATH", "HOME"]
+
+# MCP server: OpenAI developer docs (optional but recommended if you work on any OpenAI/Codex specifics).
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+required = false
+tool_timeout_sec = 60

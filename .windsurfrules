@@ -1,0 +1,25 @@
+# .windsurfrules — Windsurf Cascade project rules
+# Entry point: read AGENTS.md first, then follow the Vibe Layer Map.
+
+## Key project rules (from LAYER-1/rules.md)
+
+1. **6 fixed statuses** — New, To Read, Important, Archive, Verified, Outdated.
+   No additions, no renaming. Archive and Outdated are terminal.
+2. **Single-user allowlist** — every handler checks `from_user.id == TELEGRAM_ALLOWED_USER_ID`.
+   Unauthorized users receive no data and no acknowledgment.
+3. **Dynamic topic tree** — topics are dynamic (no enums, no hardcoded IDs).
+   Hierarchy is cycle-free (ltree containment). Renames cascade to descendants.
+4. **Migrations are mandatory** — any DB schema change requires an Alembic migration
+   tested on a clean database. Seed data must be present after `alembic upgrade head`.
+5. **Secrets only in .env** — bot token, user ID, DB credentials live in `.env` only.
+   `.env` is never committed to git.
+6. **Git workflow via branches and PR** — follow `GIT_WORKFLOW.md`. Never commit
+   directly to `main`. Feature work in `feature/…`, fixes in `fix/…`, docs in `docs/…`.
+
+## Quick references
+
+- `AGENTS.md` — AI workspace entry point and layer map
+- `LAYER-1/rules.md` — full invariants
+- `LAYER-2/specs/` — architecture, domain model, behaviors
+- `LAYER-3/HANDOFF.md` — current session state
+- `GIT_WORKFLOW.md` — branch and commit rules

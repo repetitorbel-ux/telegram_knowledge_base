@@ -1,0 +1,15 @@
+interface:
+  display_name: "KB Bot MVP Skill"
+  short_description: "Implements and maintains the Telegram personal KB bot MVP"
+  default_prompt: "Follow repository constraints, keep changes minimal and testable, and preserve the fixed status set and topic tree behavior."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "openaiDeveloperDocs"
+      description: "Optional: consult OpenAI/Codex official docs when editing Codex configs"
+      transport: "streamable_http"
+      url: "https://developers.openai.com/mcp"
