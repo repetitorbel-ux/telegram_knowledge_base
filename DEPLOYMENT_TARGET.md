@@ -62,3 +62,4 @@ Template files:
 - Use `docs/DEPLOY_RUNBOOK.md` for release command and rollback routine.
 - Use `docs/SECRETS_RUNBOOK.md` for local secrets validation procedure.
 - `docs/RUNTIME_RELIABILITY_RUNBOOK.md` is optional unless you move to Linux/VPS profile.
+- Proxifier configuration audit and recommended profile: `docs/SESSION_RECAP_2026-04-24_PROXIFIER_AUDIT.md`
