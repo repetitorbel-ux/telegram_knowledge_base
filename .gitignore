@@ -19,4 +19,4 @@ logs/
 backups/
 pytest-cache-files-*/
 instructions/
-.codex/config.toml
+

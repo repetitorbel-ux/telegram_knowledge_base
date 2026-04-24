@@ -1,0 +1,32 @@
+# .codex/rules/default.rules
+# Rules are Starlark-based and use prefix_rule() to control command execution.
+
+# Allow common safe local dev commands without prompting.
+prefix_rule(
+    pattern = ["python", "-m", "pytest"],
+    decision = "allow",
+    justification = "Run tests",
+    match = ["python -m pytest", "python -m pytest -q"],
+)
+
+prefix_rule(
+    pattern = ["alembic"],
+    decision = "prompt",
+    justification = "Migrations change DB state; require approval",
+    match = ["alembic upgrade head", "alembic revision --autogenerate -m init"],
+)
+
+prefix_rule(
+    pattern = ["docker-compose"],
+    decision = "prompt",
+    justification = "Docker can change local system state; require approval",
+    match = ["docker-compose up -d", "docker-compose down"],
+)
+
+# Forbidden destructive commands outside sandbox.
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "forbidden",
+    justification = "Never run recursive delete; use targeted deletes only",
+    match = ["rm -rf /tmp/something"],
+)
