@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
@@ -60,30 +60,67 @@ from kb_bot.domain.dto import TopicDTO
 from kb_bot.services.collection_service import SavedViewDTO
 from kb_bot.services.query_service import EntryDetail
 
+MAIN_MENU_SEARCH_TEXT = "🔎 Поиск"
+MAIN_MENU_NEW_TEXT = "📥 Новые"
+MAIN_MENU_ADD_TEXT = "➕ Добавить"
+MAIN_MENU_TOPICS_TEXT = "📚 Темы"
+MAIN_MENU_LIST_TEXT = "📋 Список"
+MAIN_MENU_STATS_TEXT = "📊 Статистика"
+MAIN_MENU_COLLECTIONS_TEXT = "📦 Коллекции"
+MAIN_MENU_EXPORT_TEXT = "📤 Экспорт"
+MAIN_MENU_IMPORT_TEXT = "📥 Импорт"
+MAIN_MENU_BACKUPS_TEXT = "💾 Бэкап"
+MAIN_MENU_HELP_TEXT = "❓ Помощь"
+
 
 def build_main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text=MAIN_MENU_SEARCH_TEXT, callback_data=MENU_SEARCH)],
             [
-                InlineKeyboardButton(text="Добавить", callback_data=MENU_ADD),
-                InlineKeyboardButton(text="Поиск", callback_data=MENU_SEARCH),
+                InlineKeyboardButton(text=MAIN_MENU_NEW_TEXT, callback_data=LIST_NEW),
+                InlineKeyboardButton(text=MAIN_MENU_ADD_TEXT, callback_data=MENU_ADD),
+                InlineKeyboardButton(text=MAIN_MENU_TOPICS_TEXT, callback_data=MENU_TOPICS),
             ],
             [
-                InlineKeyboardButton(text="Список", callback_data=MENU_LIST),
+                InlineKeyboardButton(text=MAIN_MENU_LIST_TEXT, callback_data=MENU_LIST),
+                InlineKeyboardButton(text=MAIN_MENU_STATS_TEXT, callback_data=MENU_STATS),
+                InlineKeyboardButton(text=MAIN_MENU_COLLECTIONS_TEXT, callback_data=MENU_COLLECTIONS),
             ],
             [
-                InlineKeyboardButton(text="Темы", callback_data=MENU_TOPICS),
-                InlineKeyboardButton(text="Коллекции", callback_data=MENU_COLLECTIONS),
+                InlineKeyboardButton(text=MAIN_MENU_EXPORT_TEXT, callback_data=MENU_IMPORT_EXPORT),
+                InlineKeyboardButton(text=MAIN_MENU_IMPORT_TEXT, callback_data=MENU_IMPORT_START),
+                InlineKeyboardButton(text=MAIN_MENU_BACKUPS_TEXT, callback_data=MENU_BACKUPS),
             ],
-            [
-                InlineKeyboardButton(text="Импорт/экспорт", callback_data=MENU_IMPORT_EXPORT),
-                InlineKeyboardButton(text="Бэкапы", callback_data=MENU_BACKUPS),
-            ],
-            [
-                InlineKeyboardButton(text="Статистика", callback_data=MENU_STATS),
-            ],
-            [InlineKeyboardButton(text="Помощь", callback_data=MENU_HELP)],
+            [InlineKeyboardButton(text=MAIN_MENU_HELP_TEXT, callback_data=MENU_HELP)],
         ]
+    )
+
+
+def build_main_reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=MAIN_MENU_SEARCH_TEXT)],
+            [
+                KeyboardButton(text=MAIN_MENU_NEW_TEXT),
+                KeyboardButton(text=MAIN_MENU_ADD_TEXT),
+                KeyboardButton(text=MAIN_MENU_TOPICS_TEXT),
+            ],
+            [
+                KeyboardButton(text=MAIN_MENU_LIST_TEXT),
+                KeyboardButton(text=MAIN_MENU_STATS_TEXT),
+                KeyboardButton(text=MAIN_MENU_COLLECTIONS_TEXT),
+            ],
+            [
+                KeyboardButton(text=MAIN_MENU_EXPORT_TEXT),
+                KeyboardButton(text=MAIN_MENU_IMPORT_TEXT),
+                KeyboardButton(text=MAIN_MENU_BACKUPS_TEXT),
+            ],
+            [KeyboardButton(text=MAIN_MENU_HELP_TEXT)],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Сообщение...",
     )
 
 

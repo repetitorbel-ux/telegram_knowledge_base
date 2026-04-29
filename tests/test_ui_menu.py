@@ -106,6 +106,7 @@ from kb_bot.bot.ui.keyboards import (
     build_import_export_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_main_reply_keyboard,
     build_search_actions_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
@@ -140,12 +141,32 @@ def test_main_menu_keyboard_contains_expected_actions() -> None:
         for row in keyboard.inline_keyboard
         for button in row
     }
-    assert callback_map["Добавить"] == MENU_ADD
+    assert callback_map["➕ Добавить"] == MENU_ADD
     assert "Похожие" not in callback_map
-    assert callback_map["Импорт/экспорт"] == MENU_IMPORT_EXPORT
-    assert callback_map["Бэкапы"] == MENU_BACKUPS
-    assert callback_map["Помощь"] == MENU_HELP
-    assert callback_map["Статистика"] == MENU_STATS
+    assert callback_map["📤 Экспорт"] == MENU_IMPORT_EXPORT
+    assert callback_map["💾 Бэкап"] == MENU_BACKUPS
+    assert callback_map["❓ Помощь"] == MENU_HELP
+    assert callback_map["📊 Статистика"] == MENU_STATS
+    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
+        ["🔎 Поиск"],
+        ["📥 Новые", "➕ Добавить", "📚 Темы"],
+        ["📋 Список", "📊 Статистика", "📦 Коллекции"],
+        ["📤 Экспорт", "📥 Импорт", "💾 Бэкап"],
+        ["❓ Помощь"],
+    ]
+
+
+def test_main_reply_keyboard_uses_desktop_layout() -> None:
+    keyboard = build_main_reply_keyboard()
+    assert [[button.text for button in row] for row in keyboard.keyboard] == [
+        ["🔎 Поиск"],
+        ["📥 Новые", "➕ Добавить", "📚 Темы"],
+        ["📋 Список", "📊 Статистика", "📦 Коллекции"],
+        ["📤 Экспорт", "📥 Импорт", "💾 Бэкап"],
+        ["❓ Помощь"],
+    ]
+    assert keyboard.resize_keyboard is True
+    assert keyboard.is_persistent is True
 
 
 def test_flow_navigation_keyboard_contains_cancel_and_home() -> None:

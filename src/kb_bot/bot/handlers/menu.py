@@ -102,6 +102,17 @@ from kb_bot.bot.ui.keyboards import (
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    MAIN_MENU_ADD_TEXT,
+    MAIN_MENU_BACKUPS_TEXT,
+    MAIN_MENU_COLLECTIONS_TEXT,
+    MAIN_MENU_EXPORT_TEXT,
+    MAIN_MENU_HELP_TEXT,
+    MAIN_MENU_IMPORT_TEXT,
+    MAIN_MENU_LIST_TEXT,
+    MAIN_MENU_NEW_TEXT,
+    MAIN_MENU_SEARCH_TEXT,
+    MAIN_MENU_STATS_TEXT,
+    MAIN_MENU_TOPICS_TEXT,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
     build_topic_entries_actions_rows,
@@ -151,6 +162,42 @@ _SEARCH_QUICK_QUERIES = {
     "backup": "backup",
     "infra": "infrastructure",
 }
+_MAIN_REPLY_BUTTONS = {
+    MAIN_MENU_ADD_TEXT,
+    MAIN_MENU_BACKUPS_TEXT,
+    MAIN_MENU_COLLECTIONS_TEXT,
+    MAIN_MENU_EXPORT_TEXT,
+    MAIN_MENU_HELP_TEXT,
+    MAIN_MENU_IMPORT_TEXT,
+    MAIN_MENU_LIST_TEXT,
+    MAIN_MENU_NEW_TEXT,
+    MAIN_MENU_SEARCH_TEXT,
+    MAIN_MENU_STATS_TEXT,
+    MAIN_MENU_TOPICS_TEXT,
+}
+_HELP_TEXT = (
+    "Используйте меню и кнопки как основной режим работы.\n"
+    "Сценарий `Похожие` запускается из просмотра записи или из карточки записи.\n\n"
+    "Команды остаются как дополнительный (операторский) режим:\n"
+    "/start\n"
+    "/add\n"
+    "/search <query>\n"
+    "/list [status=New] [topic=<uuid>] [limit=20]\n"
+    "/topics\n"
+    "/topic_add <name>\n"
+    "/topic_add \"<parent>\" -> <name>\n"
+    "/topic_move <topic_uuid|path|name> <target_parent_uuid|path|root>\n"
+    "/topic_rename <topic_uuid> <new_name>\n"
+    "/topic_delete <topic_uuid|full_path|name>\n"
+    "/entry_move <entry_uuid> <topic_uuid>\n"
+    "/entry_topic_add <entry_uuid> <topic_uuid>\n"
+    "/entry_topic_remove <entry_uuid> <topic_uuid>\n"
+    "/entry_edit <entry_uuid> <field> <value>\n"
+    "/stats\n"
+    "/backup\n"
+    "/backups\n\n"
+    "В пошаговом сценарии используйте кнопку `Отмена`."
+)
 
 
 def _render_topic_validation_error(exc: ValueError) -> str:
@@ -175,6 +222,108 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     async def menu_cancel_flow(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
         await _show_screen(callback, "Текущий сценарий отменен.", build_main_menu_keyboard())
+
+    @router.message(StateFilter("*"), F.text.in_(_MAIN_REPLY_BUTTONS))
+    async def main_reply_button(message: Message, state: FSMContext) -> None:
+        text = (message.text or "").strip()
+
+        if text == MAIN_MENU_ADD_TEXT:
+            await state.clear()
+            await state.set_state(AddEntryStates.waiting_content)
+            await message.answer(
+                "Режим добавления записи.\n"
+                "Отправьте URL (`http/https`) или обычный текст заметки.\n\n"
+                "Если передумаете, нажмите `Отмена` или используйте `/cancel`.",
+                reply_markup=build_flow_navigation_keyboard(),
+            )
+            return
+
+        if text == MAIN_MENU_SEARCH_TEXT:
+            state_data = await state.get_data()
+            last_query = (state_data.get("search_query") or "").strip()
+            await state.clear()
+            if last_query:
+                await state.update_data(search_query=last_query)
+            await state.set_state(GuidedSearchStates.waiting_query)
+            await message.answer(
+                "Режим поиска.\n"
+                "Нажмите быстрый запрос кнопкой ниже или отправьте свою строку сообщением.\n\n"
+                "Пример: `PostgreSQL backup`",
+                reply_markup=build_search_actions_keyboard(has_last_query=bool(last_query)),
+            )
+            return
+
+        if text == MAIN_MENU_NEW_TEXT:
+            await state.clear()
+            await _send_list_page_message(message, session_factory, state=state, list_kind=LIST_KIND_NEW, page=0)
+            return
+
+        if text == MAIN_MENU_LIST_TEXT:
+            await state.clear()
+            await message.answer(
+                "Быстрые списки.\n"
+                "Выберите, какие записи показать.\n\n"
+                "Подсказка по статусам:\n"
+                "- New: входящий поток\n"
+                "- To Read: очередь на разбор\n"
+                "- Verified: проверенные материалы",
+                reply_markup=build_list_filters_keyboard(),
+            )
+            return
+
+        if text == MAIN_MENU_TOPICS_TEXT:
+            await state.clear()
+            await message.answer("Темы.", reply_markup=await _build_topics_keyboard_from_db(session_factory))
+            return
+
+        if text == MAIN_MENU_STATS_TEXT:
+            await state.clear()
+            async with session_factory() as session:
+                service = StatsService(session)
+                stats = await service.get_stats()
+            await message.answer(_render_stats_screen(stats), reply_markup=build_home_navigation_keyboard())
+            return
+
+        if text == MAIN_MENU_COLLECTIONS_TEXT:
+            await state.clear()
+            await _send_collections_page_message(message, session_factory, page=0)
+            return
+
+        if text == MAIN_MENU_EXPORT_TEXT:
+            await state.clear()
+            await message.answer(
+                "Импорт и экспорт.\n\n"
+                "Можно запустить импорт кнопкой ниже и затем просто отправить CSV/JSON файл.\n"
+                "Также доступны быстрые экспорты без ручного ввода команды.",
+                reply_markup=build_import_export_keyboard(),
+            )
+            return
+
+        if text == MAIN_MENU_IMPORT_TEXT:
+            await state.clear()
+            await state.set_state(GuidedImportStates.waiting_document)
+            await message.answer(
+                "Режим импорта.\n"
+                "Отправьте CSV или JSON файл следующим сообщением.\n\n"
+                "Подпись /import в этом режиме не обязательна.",
+                reply_markup=build_flow_navigation_keyboard(),
+            )
+            return
+
+        if text == MAIN_MENU_BACKUPS_TEXT:
+            await state.clear()
+            await message.answer(
+                "Бэкапы.\n\n"
+                "Через кнопки ниже можно создать новый backup или посмотреть последние записи.\n"
+                "Restore пока оставляем в командном и безопасном режиме.",
+                reply_markup=build_backups_keyboard(),
+            )
+            return
+
+        if text == MAIN_MENU_HELP_TEXT:
+            await state.clear()
+            await message.answer(_HELP_TEXT, reply_markup=build_home_navigation_keyboard())
+            return
 
     @router.message(TopicCreateStates.waiting_name, F.text & ~F.text.startswith("/"))
     async def topic_create_name(message: Message, state: FSMContext) -> None:
@@ -1742,27 +1891,7 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
         await state.clear()
         await _show_screen(
             callback,
-            "Используйте меню и кнопки как основной режим работы.\n"
-            "Сценарий `Похожие` запускается из просмотра записи или из карточки записи.\n\n"
-            "Команды остаются как дополнительный (операторский) режим:\n"
-            "/start\n"
-            "/add\n"
-            "/search <query>\n"
-            "/list [status=New] [topic=<uuid>] [limit=20]\n"
-            "/topics\n"
-            "/topic_add <name>\n"
-            "/topic_add \"<parent>\" -> <name>\n"
-            "/topic_move <topic_uuid|path|name> <target_parent_uuid|path|root>\n"
-            "/topic_rename <topic_uuid> <new_name>\n"
-            "/topic_delete <topic_uuid|full_path|name>\n"
-            "/entry_move <entry_uuid> <topic_uuid>\n"
-            "/entry_topic_add <entry_uuid> <topic_uuid>\n"
-            "/entry_topic_remove <entry_uuid> <topic_uuid>\n"
-            "/entry_edit <entry_uuid> <field> <value>\n"
-            "/stats\n"
-            "/backup\n"
-            "/backups\n\n"
-            "В пошаговом сценарии используйте кнопку `Отмена`.",
+            _HELP_TEXT,
             build_home_navigation_keyboard(),
         )
 
@@ -2090,6 +2219,41 @@ async def _show_list_page(
     )
 
 
+async def _send_list_page_message(
+    message: Message,
+    session_factory: async_sessionmaker,
+    *,
+    state: FSMContext | None = None,
+    list_kind: str,
+    page: int,
+) -> None:
+    if state is not None:
+        await state.update_data(
+            list_entries_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+        )
+    status_name, title = _get_list_kind_config(list_kind)
+    items, has_next_page = await _load_entries(
+        session_factory,
+        status_name=status_name,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    await message.answer(
+        _render_entry_list_screen(items, title, page=page),
+        reply_markup=build_entry_results_keyboard(
+            items,
+            back_callback=MENU_LIST,
+            back_text="Назад к фильтрам",
+            page=page,
+            has_prev_page=False,
+            has_next_page=has_next_page,
+            page_callback_prefix=f"{LIST_PAGE_PREFIX}{list_kind}:",
+            entry_back_callback=f"{LIST_PAGE_PREFIX}{list_kind}:{page}",
+            merge_pagination_and_back=True,
+        ),
+    )
+
+
 async def _show_related_source_page(
     callback: CallbackQuery,
     session_factory: async_sessionmaker,
@@ -2327,6 +2491,29 @@ async def _show_collections_page(
             items,
             page=page,
             has_prev_page=page > 0,
+            has_next_page=has_next_page,
+            page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
+        ),
+    )
+
+
+async def _send_collections_page_message(
+    message: Message,
+    session_factory: async_sessionmaker,
+    *,
+    page: int,
+) -> None:
+    items, has_next_page = await _load_collections_page(
+        session_factory,
+        page=page,
+        page_size=PAGE_SIZE,
+    )
+    await message.answer(
+        _render_collections_overview_screen(items, page=page),
+        reply_markup=build_collections_keyboard(
+            items,
+            page=page,
+            has_prev_page=False,
             has_next_page=has_next_page,
             page_callback_prefix=COLLECTIONS_PAGE_PREFIX,
         ),

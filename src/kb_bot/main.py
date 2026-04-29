@@ -32,7 +32,7 @@ from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonCommands
 
 from kb_bot.bot.router import build_router
 from kb_bot.bot.handlers.start import render_boot_text
-from kb_bot.bot.ui.keyboards import build_main_menu_keyboard
+from kb_bot.bot.ui.keyboards import build_main_reply_keyboard
 from kb_bot.core.auth import AllowlistMiddleware
 from kb_bot.core.config import get_settings
 from kb_bot.core.logging import setup_logging
@@ -124,7 +124,7 @@ async def run_bot() -> None:
                 await bot.send_message(
                     chat_id=settings.telegram_allowed_user_id,
                     text=render_boot_text(),
-                    reply_markup=build_main_menu_keyboard(),
+                    reply_markup=build_main_reply_keyboard(),
                     disable_notification=True,
                 )
             except Exception:
@@ -168,7 +168,7 @@ async def run_bot() -> None:
             await bot.send_message(
                 chat_id=settings.telegram_allowed_user_id,
                 text=render_boot_text(),
-                reply_markup=build_main_menu_keyboard(),
+                reply_markup=build_main_reply_keyboard(),
                 disable_notification=True,
             )
         except Exception:
