@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from textwrap import wrap
 
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
@@ -218,6 +219,7 @@ def build_entry_results_keyboard(
     merge_back_and_main: bool = False,
     merge_pagination_and_back: bool = False,
     entries_per_row: int = 1,
+    include_status_in_label: bool = True,
 ) -> InlineKeyboardMarkup:
     rows = []
     current_entry_row: list[InlineKeyboardButton] = []
@@ -230,14 +232,14 @@ def build_entry_results_keyboard(
         if preview_callback_prefix:
             current_entry_row.append(
                 InlineKeyboardButton(
-                    text=_render_entry_button_label(item),
+                    text=_render_entry_button_label(item, include_status=include_status_in_label),
                     callback_data=f"{preview_callback_prefix}{entry_id}",
                 )
             )
         else:
             current_entry_row.append(
                 InlineKeyboardButton(
-                    text=_render_entry_button_label(item),
+                    text=_render_entry_button_label(item, include_status=include_status_in_label),
                     callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
                 )
             )
@@ -507,9 +509,42 @@ def build_entry_preview_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _render_entry_button_label(item: object) -> str:
-    label = f"{item.title} [{item.status_name}]"
-    return label[:64]
+def _render_entry_button_label(item: object, *, include_status: bool = True) -> str:
+    label = item.title
+    if include_status:
+        label = f"{item.title} [{item.status_name}]"
+    return _wrap_button_text(label, max_line_length=28, max_lines=2, hard_limit=64)
+
+
+def _wrap_button_text(
+    text: str,
+    *,
+    max_line_length: int,
+    max_lines: int,
+    hard_limit: int,
+) -> str:
+    compact = " ".join((text or "").split())
+    if not compact:
+        return ""
+    lines = wrap(
+        compact,
+        width=max_line_length,
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
+    clipped = lines[:max_lines]
+    wrapped = "\n".join(clipped)
+
+    if len(wrapped) > hard_limit:
+        wrapped = wrapped[:hard_limit].rstrip()
+
+    if len(lines) > max_lines or wrapped != compact:
+        if len(wrapped) >= hard_limit:
+            wrapped = wrapped[: max(0, hard_limit - 3)].rstrip()
+        if not wrapped.endswith("..."):
+            wrapped = f"{wrapped}..."
+
+    return wrapped
 
 
 def _extract_entry_id(item: object):

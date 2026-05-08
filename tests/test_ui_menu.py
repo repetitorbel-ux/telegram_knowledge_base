@@ -344,6 +344,24 @@ def test_entry_results_keyboard_contains_entry_buttons() -> None:
     assert MENU_MAIN in callbacks
 
 
+def test_entry_results_keyboard_wraps_long_button_text_to_second_line() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="А вот плагин для vscode или https://github.com/sajidmahamud835/vscode-extension",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(items)
+    first_button_text = keyboard.inline_keyboard[0][0].text
+    assert "\n" in first_button_text
+    assert len(first_button_text) <= 64
+
+
 def test_entry_results_keyboard_supports_extra_rows() -> None:
     items = []
     extra_rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
@@ -466,6 +484,26 @@ def test_entry_results_keyboard_contains_topic_preview_callback() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert len(keyboard.inline_keyboard[0]) == 1
+
+
+def test_entry_results_keyboard_can_hide_status_in_button_label() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="To Read",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+        include_status_in_label=False,
+    )
+    assert "[To Read]" not in keyboard.inline_keyboard[0][0].text
 
 
 def test_entry_results_keyboard_can_render_two_topic_preview_buttons_per_row() -> None:

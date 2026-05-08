@@ -95,6 +95,7 @@ Priority order (suggested):
   - Python socket creation failed with `WinError 10106`;
   - PostgreSQL service `postgresql-x64-17` was `Stopped`/`Disabled`, and non-admin service start was denied.
   Runtime scripts were hardened so healthcheck/launcher fail on DB precheck instead of reporting a false PASS.
+  - Current follow-up evidence (2026-05-08): service `postgresql-x64-17` is now `Running`/`Automatic`, but `pg_isready` still reports no response and Python socket creation still fails with `WinError 10106`; likely remaining fix is an administrator-level Winsock reset followed by Windows restart.
 
 ---
 

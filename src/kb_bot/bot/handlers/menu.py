@@ -102,6 +102,7 @@ from kb_bot.bot.ui.keyboards import (
     build_home_navigation_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_main_reply_keyboard,
     MAIN_MENU_ADD_TEXT,
     MAIN_MENU_BACKUPS_TEXT,
     MAIN_MENU_COLLECTIONS_TEXT,
@@ -216,7 +217,16 @@ def create_menu_router(session_factory: async_sessionmaker) -> Router:
     @router.callback_query(StateFilter("*"), F.data == MENU_MAIN)
     async def menu_main(callback: CallbackQuery, state: FSMContext) -> None:
         await state.clear()
-        await _show_screen(callback, render_welcome_text(), build_main_menu_keyboard())
+        await callback.answer()
+        if callback.message is not None:
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except TelegramBadRequest:
+                pass
+            await callback.message.answer(
+                render_welcome_text(),
+                reply_markup=build_main_reply_keyboard(),
+            )
 
     @router.callback_query(StateFilter("*"), F.data == MENU_CANCEL_FLOW)
     async def menu_cancel_flow(callback: CallbackQuery, state: FSMContext) -> None:
@@ -2360,7 +2370,8 @@ async def _show_topic_entries_page(
             entry_back_callback=f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:{page}",
             preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
             extra_rows=build_topic_entries_actions_rows(str(topic_id)),
-            entries_per_row=2,
+            entries_per_row=1,
+            include_status_in_label=False,
             merge_back_and_main=True,
         ),
     )
