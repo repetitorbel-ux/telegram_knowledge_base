@@ -1177,6 +1177,29 @@ def test_topics_tree_keyboard_contains_toggle_and_topic_callbacks() -> None:
     assert any("Neural Networks / AI" in label for label in labels)
 
 
+def test_topics_tree_keyboard_renders_counts_and_top_actions() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Finance",
+                full_path="finance",
+                level=0,
+            ),
+            False,
+            False,
+        ),
+    ]
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        topic_counts_by_id={"11111111-1111-1111-1111-111111111111": 12},
+    )
+    labels_by_row = [[button.text for button in row] for row in keyboard.inline_keyboard]
+    assert labels_by_row[0] == ["Добавить корневую тему", "Обновить"]
+    assert any("Finance (12)" in row[0] for row in labels_by_row if row)
+
+
 def test_topics_tree_keyboard_groups_subtopics_by_three_buttons_per_row() -> None:
     topic_rows = [
         (

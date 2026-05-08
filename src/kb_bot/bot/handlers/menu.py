@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from kb_bot.bot.fsm.states import (
@@ -122,6 +123,7 @@ from kb_bot.bot.ui.keyboards import (
 from kb_bot.core.config import Settings, get_settings
 from kb_bot.core.list_parsing import ListFilters
 from kb_bot.db.repositories.backups import BackupsRepository
+from kb_bot.db.orm.entry import KnowledgeEntry
 from kb_bot.db.repositories.embeddings import EmbeddingsRepository
 from kb_bot.db.repositories.entries import EntriesRepository
 from kb_bot.db.repositories.jobs import JobsRepository
@@ -2148,10 +2150,20 @@ async def _load_topics_tree_page(
     page: int,
     expanded_paths: set[str],
     page_size: int = PAGE_SIZE,
-) -> tuple[list[tuple[TopicDTO, bool, bool]], bool]:
+) -> tuple[list[tuple[TopicDTO, bool, bool]], dict[object, int], bool]:
     async with session_factory() as session:
         service = TopicService(TopicsRepository(session))
         topics = await service.list_tree()
+        topic_ids = [topic.id for topic in topics]
+        topic_counts_by_id: dict[object, int] = {}
+        if topic_ids:
+            count_stmt = (
+                select(KnowledgeEntry.primary_topic_id, func.count(KnowledgeEntry.id))
+                .where(KnowledgeEntry.primary_topic_id.in_(topic_ids))
+                .group_by(KnowledgeEntry.primary_topic_id)
+            )
+            count_rows = (await session.execute(count_stmt)).all()
+            topic_counts_by_id = {topic_id: int(count) for topic_id, count in count_rows}
 
     roots = [item for item in topics if item.level == 0]
     roots_page, has_next_page = _paginate_rows(roots, page=page, page_size=page_size)
@@ -2178,7 +2190,7 @@ async def _load_topics_tree_page(
     for root_topic in roots_page:
         _append_branch(root_topic)
 
-    return rows, has_next_page
+    return rows, topic_counts_by_id, has_next_page
 
 
 async def _load_collections_page(
@@ -2312,7 +2324,7 @@ async def _show_topics_page(
         expanded_paths = set(_coerce_str_list(state_data.get("topics_expanded_paths")))
         await state.update_data(topics_page=page)
 
-    items, has_next_page = await _load_topics_tree_page(
+    items, topic_counts_by_id, has_next_page = await _load_topics_tree_page(
         session_factory,
         page=page,
         expanded_paths=expanded_paths,
@@ -2327,6 +2339,7 @@ async def _show_topics_page(
             has_prev_page=page > 0,
             has_next_page=has_next_page,
             page_callback_prefix=TOPICS_PAGE_PREFIX,
+            topic_counts_by_id=topic_counts_by_id,
         ),
     )
 
@@ -2763,7 +2776,7 @@ def _allowed_target_statuses(current_status: str) -> list[str]:
 
 
 async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *, page: int = 0):
-    items, has_next_page = await _load_topics_tree_page(
+    items, topic_counts_by_id, has_next_page = await _load_topics_tree_page(
         session_factory,
         page=page,
         expanded_paths=set(),
@@ -2775,6 +2788,7 @@ async def _build_topics_keyboard_from_db(session_factory: async_sessionmaker, *,
         has_prev_page=page > 0,
         has_next_page=has_next_page,
         page_callback_prefix=TOPICS_PAGE_PREFIX,
+        topic_counts_by_id=topic_counts_by_id,
     )
 
 
@@ -3114,3 +3128,4 @@ def _html_to_plain_text(value: str) -> str:
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
     normalized = re.sub(r"\n{3,}", "\n\n", normalized)
     return normalized.strip()
+

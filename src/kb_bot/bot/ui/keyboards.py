@@ -728,11 +728,21 @@ def build_topics_tree_keyboard(
     has_prev_page: bool = False,
     has_next_page: bool = False,
     page_callback_prefix: str | None = None,
+    topic_counts_by_id: dict[object, int] | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE)]
+        [
+            InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE),
+            InlineKeyboardButton(text="Обновить", callback_data=MENU_TOPICS),
+        ],
+        [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
     ]
     child_row_buffer: list[InlineKeyboardButton] = []
+    topic_counts_by_id = topic_counts_by_id or {}
+
+    def _topic_label(topic: TopicDTO) -> str:
+        count = int(topic_counts_by_id.get(topic.id, 0))
+        return f"{_render_topic_button_label(topic)} ({count})"
 
     def _flush_child_row_buffer() -> None:
         nonlocal child_row_buffer
@@ -748,7 +758,7 @@ def build_topics_tree_keyboard(
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"{depth_indent}{toggle_icon} {_render_topic_button_label(topic)}",
+                        text=f"{depth_indent}{toggle_icon} {_topic_label(topic)}",
                         callback_data=f"{TOPIC_TOGGLE_PREFIX}{topic.id}",
                     ),
                 ]
@@ -773,7 +783,7 @@ def build_topics_tree_keyboard(
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                        text=f"{depth_indent}{_topic_label(topic)}",
                         callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
                     )
                 ]
@@ -782,7 +792,7 @@ def build_topics_tree_keyboard(
 
         child_row_buffer.append(
             InlineKeyboardButton(
-                text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                text=f"{depth_indent}{_topic_label(topic)}",
                 callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
             )
         )
@@ -810,7 +820,6 @@ def build_topics_tree_keyboard(
         if pagination_row:
             rows.append(pagination_row)
 
-    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
