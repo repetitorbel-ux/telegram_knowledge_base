@@ -89,6 +89,12 @@ Priority order (suggested):
 - **DNS loopback after reboot**: Telegram DNS resolves to `127.*` in some boot cycles.
 - Detail: `LAYER-3/incidents/INCIDENT_2026-03-29_TELEGRAM_DNS_LOOPBACK.md`.
 - Recovery steps are documented in the incident file.
+- **2026-05-08 local Winsock/proxy breakage**: after ISP proxy setup, bot callback/list buttons appeared unresponsive because PostgreSQL at `127.0.0.1:5432` was unreachable. Evidence:
+  - bot logs showed `ConnectionRefusedError: [Errno 10061] Connect call failed ('127.0.0.1', 5432)`;
+  - `pg_isready -h 127.0.0.1 -p 5432` returned no response;
+  - Python socket creation failed with `WinError 10106`;
+  - PostgreSQL service `postgresql-x64-17` was `Stopped`/`Disabled`, and non-admin service start was denied.
+  Runtime scripts were hardened so healthcheck/launcher fail on DB precheck instead of reporting a false PASS.
 
 ---
 

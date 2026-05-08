@@ -217,32 +217,37 @@ def build_entry_results_keyboard(
     extra_rows: list[list[InlineKeyboardButton]] | None = None,
     merge_back_and_main: bool = False,
     merge_pagination_and_back: bool = False,
+    entries_per_row: int = 1,
 ) -> InlineKeyboardMarkup:
     rows = []
+    current_entry_row: list[InlineKeyboardButton] = []
     pagination_row: list[InlineKeyboardButton] | None = None
+    entries_per_row = max(1, entries_per_row)
     for item in items:
         entry_id = _extract_entry_id(item)
         if entry_id is None:
             continue
         if preview_callback_prefix:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=_render_entry_button_label(item),
-                        callback_data=f"{preview_callback_prefix}{entry_id}",
-                    ),
-                ]
+            current_entry_row.append(
+                InlineKeyboardButton(
+                    text=_render_entry_button_label(item),
+                    callback_data=f"{preview_callback_prefix}{entry_id}",
+                )
             )
-            continue
-
-        rows.append(
-            [
+        else:
+            current_entry_row.append(
                 InlineKeyboardButton(
                     text=_render_entry_button_label(item),
                     callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
                 )
-            ]
-        )
+            )
+
+        if len(current_entry_row) == entries_per_row:
+            rows.append(current_entry_row)
+            current_entry_row = []
+
+    if current_entry_row:
+        rows.append(current_entry_row)
 
     if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
         pagination_row = []
@@ -636,8 +641,8 @@ def build_topic_entries_actions_rows(topic_id: str) -> list[list[InlineKeyboardB
         [
             InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}"),
             InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}"),
-            InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}"),
-        ]
+        ],
+        [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
     ]
 
 
@@ -782,25 +787,33 @@ def build_topic_detail_keyboard(
 ) -> InlineKeyboardMarkup:
     entries_callback = topic_entries_callback or f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:0"
     rows: list[list[InlineKeyboardButton]] = []
+    quick_entry_row: list[InlineKeyboardButton] = []
     if quick_entries:
         for entry in quick_entries[:5]:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=_render_entry_button_label(entry),
-                        callback_data=f"{TOPIC_ENTRY_PREVIEW_PREFIX}{entry.entry_id}",
-                    ),
-                ]
+            quick_entry_row.append(
+                InlineKeyboardButton(
+                    text=_render_entry_button_label(entry),
+                    callback_data=f"{TOPIC_ENTRY_PREVIEW_PREFIX}{entry.entry_id}",
+                )
             )
+            if len(quick_entry_row) == 2:
+                rows.append(quick_entry_row)
+                quick_entry_row = []
+        if quick_entry_row:
+            rows.append(quick_entry_row)
 
     rows.extend(
         [
             [InlineKeyboardButton(text="Открыть все записи темы", callback_data=entries_callback)],
-            [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS)],
-            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+            [
+                InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}"),
+                InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}"),
+                InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS),
+                InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+            ],
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
