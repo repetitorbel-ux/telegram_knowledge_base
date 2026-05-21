@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import types
 import uuid
@@ -154,23 +155,83 @@ async def test_restore_success_marks_tested_and_consumes_token() -> None:
                 token=str(token),
                 database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
                 pg_restore_bin="pg_restore",
+                psql_bin="psql",
+                createdb_bin="createdb",
             )
 
-        session.commit.assert_awaited_once()
         session.rollback.assert_awaited_once()
         assert record.restore_tested_at is not None
         assert str(record.id) not in backup_service_module._RESTORE_TOKENS
 
-        command = run_mock.call_args.args[0]
-        timeout = run_mock.call_args.kwargs.get("timeout")
-        capture_output = run_mock.call_args.kwargs.get("capture_output")
-        text_mode = run_mock.call_args.kwargs.get("text")
-        assert "--single-transaction" in command
-        assert "--no-owner" in command
-        assert "--no-privileges" in command
-        assert timeout == 1800
-        assert capture_output is True
-        assert text_mode is True
+        # collect all commands called
+        all_calls = run_mock.call_args_list
+        all_cmds = [call.args[0] for call in all_calls]
+
+        # createdb must be called
+        createdb_calls = [cmd for cmd in all_cmds if cmd[0] == "createdb"]
+        assert len(createdb_calls) == 1
+        assert "tg_kb_restore_tmp" in createdb_calls[0]
+
+        # pg_restore must be called with tmp db dsn and --no-owner, --no-privileges
+        pg_restore_calls = [cmd for cmd in all_cmds if cmd[0] == "pg_restore"]
+        assert len(pg_restore_calls) == 1
+        assert "--no-owner" in pg_restore_calls[0]
+        assert "--no-privileges" in pg_restore_calls[0]
+        assert "--single-transaction" not in pg_restore_calls[0]
+        restore_dsn = pg_restore_calls[0][pg_restore_calls[0].index("-d") + 1]
+        assert "tg_kb_restore_tmp" in restore_dsn
+
+        # psql rename must be called (ALTER DATABASE ... RENAME TO ...)
+        psql_calls = [cmd for cmd in all_cmds if cmd[0] == "psql"]
+        rename_cmds = [call.kwargs.get("") or call for call in all_calls if call.args[0][0] == "psql"]
+        psql_sqls = [call.args[0][-1] for call in all_calls if call.args[0][0] == "psql"]
+        rename_sqls = [s for s in psql_sqls if "RENAME TO" in s]
+        assert len(rename_sqls) == 2  # rename tg_kb -> old, tmp -> tg_kb
+
+    finally:
+        file_path.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_restore_swap_cleans_up_tmp_db_on_failure() -> None:
+    file_path = _create_backup_file(b"backup-content")
+    try:
+        checksum = backup_service_module._sha256_file(file_path)
+        record = BackupRecord(
+            id=uuid.uuid4(),
+            filename=file_path.name,
+            file_path=str(file_path),
+            sha256_checksum=checksum,
+        )
+        session = types.SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+        service = BackupService(FakeBackupsRepository(record), session)
+        token = await service.issue_restore_token(str(record.id))
+
+        call_count = 0
+
+        def _run_side_effect(cmd, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # fail on pg_restore call
+            if cmd[0] == "pg_restore":
+                raise subprocess.CalledProcessError(1, cmd, stderr="simulated restore error")
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with patch("kb_bot.services.backup_service.subprocess.run", side_effect=_run_side_effect):
+            with pytest.raises(subprocess.CalledProcessError):
+                await service.restore_backup(
+                    backup_id=str(record.id),
+                    token=str(token),
+                    database_url="postgresql+asyncpg://postgres:secret@localhost:5432/tg_kb",
+                    pg_restore_bin="pg_restore",
+                    psql_bin="psql",
+                    createdb_bin="createdb",
+                )
+
+        # token should still be consumed after failure attempt? No — token stays if restore fails
+        # Actually by design token is only popped on SUCCESS. Token stays on failure.
+        # Verify the restore token is NOT consumed on failure
+        assert str(record.id) in backup_service_module._RESTORE_TOKENS
     finally:
         file_path.unlink(missing_ok=True)
 

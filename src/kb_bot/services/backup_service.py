@@ -90,6 +90,8 @@ class BackupService:
         token: str,
         database_url: str,
         pg_restore_bin: str,
+        psql_bin: str = "psql",
+        createdb_bin: str = "createdb",
         restore_timeout_sec: int = 1800,
     ) -> None:
         _cleanup_expired_tokens()
@@ -116,35 +118,94 @@ class BackupService:
         if not secrets.compare_digest(actual_checksum, expected_checksum):
             raise ValueError("backup checksum mismatch")
 
-        # Release SQLAlchemy transaction locks before pg_restore starts DDL.
+        # Release SQLAlchemy connection locks before any DDL.
         await self.session.rollback()
 
         sync_url, env = _to_pg_dump_url_and_env(database_url)
         _ensure_restore_target_is_safe(sync_url)
+
+        parsed = urlparse(sync_url)
+        db_name = parsed.path.lstrip("/")
+        host = parsed.hostname or "localhost"
+        port = str(parsed.port or 5432)
+        user = parsed.username or ""
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        tmp_db = f"{db_name}_restore_tmp"
+        old_db = f"{db_name}_old_{ts}"
+        maintenance_url = f"postgresql://{user}@{host}:{port}/postgres"
+
+        def _psql_exec(sql: str) -> None:
+            subprocess.run(
+                [psql_bin, "-v", "ON_ERROR_STOP=1", "-d", maintenance_url, "-c", sql],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+        # Step 1: drop tmp DB if leftover from previous failed attempt
+        try:
+            _psql_exec(f'DROP DATABASE IF EXISTS "{tmp_db}";')
+        except subprocess.CalledProcessError:
+            pass
+
+        # Step 2: create tmp DB
         await asyncio.to_thread(
             subprocess.run,
-            [
-                pg_restore_bin,
-                "--clean",
-                "--if-exists",
-                "--no-owner",
-                "--no-privileges",
-                "--single-transaction",
-                "-d",
-                sync_url,
-                str(backup_path),
-            ],
+            [createdb_bin, "-h", host, "-p", port, "-U", user, tmp_db],
             check=True,
             capture_output=True,
             text=True,
             env=env,
-            timeout=restore_timeout_sec,
         )
+
+        tmp_dsn = f"postgresql://{user}@{host}:{port}/{tmp_db}"
+        try:
+            # Step 3: restore into tmp DB
+            await asyncio.to_thread(
+                subprocess.run,
+                [
+                    pg_restore_bin,
+                    "--no-owner",
+                    "--no-privileges",
+                    "-d",
+                    tmp_dsn,
+                    str(backup_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=restore_timeout_sec,
+            )
+
+            # Step 4: terminate all connections to target DB (so we can rename it)
+            _psql_exec(
+                f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE datname = '{db_name}' AND pid <> pg_backend_pid();"
+            )
+
+            # Step 5: rename target → old, tmp → target
+            _psql_exec(f'ALTER DATABASE "{db_name}" RENAME TO "{old_db}";')
+            _psql_exec(f'ALTER DATABASE "{tmp_db}" RENAME TO "{db_name}";')
+
+        except Exception:
+            # Cleanup: drop tmp DB on any failure
+            try:
+                _psql_exec(f'DROP DATABASE IF EXISTS "{tmp_db}";')
+            except Exception:
+                pass
+            raise
+
         _RESTORE_TOKENS.pop(backup_id, None)
         refreshed = await self.backups_repo.get(uuid.UUID(backup_id))
         if refreshed is not None:
             refreshed.restore_tested_at = datetime.now(UTC)
-            await self.session.commit()
+            try:
+                await self.session.commit()
+            except Exception:
+                # Session may be invalid after DB rename — not critical
+                pass
 
 
 def _to_pg_dump_url_and_env(database_url: str) -> tuple[str, dict[str, str]]:

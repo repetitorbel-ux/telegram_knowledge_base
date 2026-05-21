@@ -73,6 +73,8 @@ def create_backup_restore_router(session_factory: async_sessionmaker) -> Router:
                     token=token,
                     database_url=settings.database_url,
                     pg_restore_bin=settings.pg_restore_bin,
+                    psql_bin=settings.psql_bin,
+                    createdb_bin=settings.createdb_bin,
                     restore_timeout_sec=settings.restore_timeout_sec,
                 )
             except Exception as exc:
