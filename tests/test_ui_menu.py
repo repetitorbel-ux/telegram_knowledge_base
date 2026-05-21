@@ -106,6 +106,7 @@ from kb_bot.bot.ui.keyboards import (
     build_import_export_keyboard,
     build_list_filters_keyboard,
     build_main_menu_keyboard,
+    build_main_reply_keyboard,
     build_search_actions_keyboard,
     build_topic_delete_confirm_keyboard,
     build_topic_detail_keyboard,
@@ -140,12 +141,32 @@ def test_main_menu_keyboard_contains_expected_actions() -> None:
         for row in keyboard.inline_keyboard
         for button in row
     }
-    assert callback_map["Добавить"] == MENU_ADD
+    assert callback_map["➕ Добавить"] == MENU_ADD
     assert "Похожие" not in callback_map
-    assert callback_map["Импорт/экспорт"] == MENU_IMPORT_EXPORT
-    assert callback_map["Бэкапы"] == MENU_BACKUPS
-    assert callback_map["Помощь"] == MENU_HELP
-    assert callback_map["Статистика"] == MENU_STATS
+    assert callback_map["📤 Экспорт"] == MENU_IMPORT_EXPORT
+    assert callback_map["💾 Бэкап"] == MENU_BACKUPS
+    assert callback_map["❓ Помощь"] == MENU_HELP
+    assert callback_map["📊 Статистика"] == MENU_STATS
+    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
+        ["🔎 Поиск"],
+        ["📥 Новые", "➕ Добавить", "📚 Темы"],
+        ["📋 Список", "📊 Статистика", "📦 Коллекции"],
+        ["📤 Экспорт", "📥 Импорт", "💾 Бэкап"],
+        ["❓ Помощь"],
+    ]
+
+
+def test_main_reply_keyboard_uses_desktop_layout() -> None:
+    keyboard = build_main_reply_keyboard()
+    assert [[button.text for button in row] for row in keyboard.keyboard] == [
+        ["🔎 Поиск"],
+        ["📥 Новые", "➕ Добавить", "📚 Темы"],
+        ["📋 Список", "📊 Статистика", "📦 Коллекции"],
+        ["📤 Экспорт", "📥 Импорт", "💾 Бэкап"],
+        ["❓ Помощь"],
+    ]
+    assert keyboard.resize_keyboard is True
+    assert keyboard.is_persistent is True
 
 
 def test_flow_navigation_keyboard_contains_cancel_and_home() -> None:
@@ -323,6 +344,24 @@ def test_entry_results_keyboard_contains_entry_buttons() -> None:
     assert MENU_MAIN in callbacks
 
 
+def test_entry_results_keyboard_wraps_long_button_text_to_second_line() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="А вот плагин для vscode или https://github.com/sajidmahamud835/vscode-extension",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(items)
+    first_button_text = keyboard.inline_keyboard[0][0].text
+    assert "\n" in first_button_text
+    assert len(first_button_text) <= 64
+
+
 def test_entry_results_keyboard_supports_extra_rows() -> None:
     items = []
     extra_rows = build_topic_entries_actions_rows("11111111-1111-1111-1111-111111111111")
@@ -351,8 +390,9 @@ def test_topic_entries_actions_rows_contains_manage_actions() -> None:
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
-    assert len(rows) == 1
-    assert len(rows[0]) == 3
+    assert len(rows) == 2
+    assert len(rows[0]) == 2
+    assert len(rows[1]) == 1
 
 
 def test_entry_results_keyboard_contains_pagination_callbacks() -> None:
@@ -444,6 +484,55 @@ def test_entry_results_keyboard_contains_topic_preview_callback() -> None:
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert len(keyboard.inline_keyboard[0]) == 1
+
+
+def test_entry_results_keyboard_can_hide_status_in_button_label() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="To Read",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        )
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+        include_status_in_label=False,
+    )
+    assert "[To Read]" not in keyboard.inline_keyboard[0][0].text
+
+
+def test_entry_results_keyboard_can_render_two_topic_preview_buttons_per_row() -> None:
+    items = [
+        EntryDetail(
+            entry_id="11111111-1111-1111-1111-111111111111",
+            title="Example title",
+            status_name="New",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        ),
+        EntryDetail(
+            entry_id="22222222-2222-2222-2222-222222222222",
+            title="Second title",
+            status_name="To Read",
+            topic_name="Python",
+            original_url=None,
+            normalized_url=None,
+            notes=None,
+        ),
+    ]
+    keyboard = build_entry_results_keyboard(
+        items,
+        preview_callback_prefix=TOPIC_ENTRY_PREVIEW_PREFIX,
+        entries_per_row=2,
+    )
+    assert len(keyboard.inline_keyboard[0]) == 2
 
 
 def test_entry_results_keyboard_does_not_contain_inline_delete_callback() -> None:
@@ -1088,6 +1177,29 @@ def test_topics_tree_keyboard_contains_toggle_and_topic_callbacks() -> None:
     assert any("Neural Networks / AI" in label for label in labels)
 
 
+def test_topics_tree_keyboard_renders_counts_and_top_actions() -> None:
+    topic_rows = [
+        (
+            TopicDTO(
+                id="11111111-1111-1111-1111-111111111111",
+                name="Finance",
+                full_path="finance",
+                level=0,
+            ),
+            False,
+            False,
+        ),
+    ]
+    keyboard = build_topics_tree_keyboard(
+        topic_rows,
+        page=0,
+        topic_counts_by_id={"11111111-1111-1111-1111-111111111111": 12},
+    )
+    labels_by_row = [[button.text for button in row] for row in keyboard.inline_keyboard]
+    assert labels_by_row[0] == ["Добавить корневую тему", "Обновить"]
+    assert any("Finance (12)" in row[0] for row in labels_by_row if row)
+
+
 def test_topics_tree_keyboard_groups_subtopics_by_three_buttons_per_row() -> None:
     topic_rows = [
         (
@@ -1237,6 +1349,14 @@ def test_topic_detail_keyboard_contains_child_create_and_rename_actions() -> Non
     assert f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111" in callbacks
     assert MENU_TOPICS in callbacks
+    assert MENU_MAIN in callbacks
+    callbacks_by_row = [[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+    assert [
+        f"{TOPIC_RENAME_PREFIX}11111111-1111-1111-1111-111111111111",
+        f"{TOPIC_CREATE_CHILD_PREFIX}11111111-1111-1111-1111-111111111111",
+        f"{TOPIC_DELETE_PREFIX}11111111-1111-1111-1111-111111111111",
+    ] in callbacks_by_row
+    assert [MENU_TOPICS, MENU_MAIN] in callbacks_by_row
 
 
 def test_topic_detail_keyboard_contains_quick_entry_buttons() -> None:
@@ -1249,7 +1369,16 @@ def test_topic_detail_keyboard_contains_quick_entry_buttons() -> None:
             original_url="https://core.telegram.org/bots/api",
             normalized_url="https://core.telegram.org/bots/api",
             notes=None,
-        )
+        ),
+        EntryDetail(
+            entry_id="33333333-3333-3333-3333-333333333333",
+            title="Second entry",
+            status_name="To Read",
+            topic_name="To Read",
+            original_url="https://example.com/second",
+            normalized_url="https://example.com/second",
+            notes=None,
+        ),
     ]
     keyboard = build_topic_detail_keyboard(
         "11111111-1111-1111-1111-111111111111",
@@ -1257,6 +1386,8 @@ def test_topic_detail_keyboard_contains_quick_entry_buttons() -> None:
     )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}22222222-2222-2222-2222-222222222222" in callbacks
+    assert f"{TOPIC_ENTRY_PREVIEW_PREFIX}33333333-3333-3333-3333-333333333333" in callbacks
+    assert len(keyboard.inline_keyboard[0]) == 2
 
 
 def test_topic_delete_confirm_keyboard_contains_confirm_and_cancel() -> None:

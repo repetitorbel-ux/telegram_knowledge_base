@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-23
-**Active branch:** `feature/p2-003-semantic-search-design` (P2-003 accepted and marked Delivered)
+**Date:** 2026-05-21
+**Active branch:** `feature/desktop-main-reply-menu` (PR #51 open, CI green, ready to merge)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -33,6 +33,17 @@ Priority order (suggested):
 2. **P2-006** — Webhook mode (**Deferred by operator decision on 2026-04-22; keep polling mode for now**).
 
 ### Latest Progress in Phase 2 (Current Session) ✅
+- **P2-UX-desktop** — Desktop reply menu + UX polish (PR #51, 2026-05-21):
+  - Added persistent reply-keyboard main menu (`build_main_reply_keyboard`) — кнопки всегда видны в Telegram Desktop.
+  - Per-topic entry counters in topics tree.
+  - Topic detail keyboard: управляющие кнопки в одну строку, записи — по 2 в ряд.
+  - Topics tree: кнопка «Обновить», «В главное меню» перенесена вверх.
+  - Help handler с полным списком команд.
+  - Runtime scripts hardened: `start_bot_local.ps1`, `runtime_healthcheck_local.ps1`, `run_watchdog_hidden.pyw`.
+  - Tests updated: `test_ui_menu.py`, `test_router.py`.
+  - CI: 222 passed, 0 failed.
+  - Status: PR #51 open, CI green, awaiting merge.
+
 - **P2-003** — semantic search foundation delivered on 2026-04-23:
   - Added migration `0007_semantic_embeddings` (`vector` extension + `knowledge_entry_embeddings` table + indexes).
   - Added migration `0008_embedding_dim_768` for local Ollama mode (`vector(768)`).
@@ -89,6 +100,13 @@ Priority order (suggested):
 - **DNS loopback after reboot**: Telegram DNS resolves to `127.*` in some boot cycles.
 - Detail: `LAYER-3/incidents/INCIDENT_2026-03-29_TELEGRAM_DNS_LOOPBACK.md`.
 - Recovery steps are documented in the incident file.
+- **2026-05-08 local Winsock/proxy breakage**: after ISP proxy setup, bot callback/list buttons appeared unresponsive because PostgreSQL at `127.0.0.1:5432` was unreachable. Evidence:
+  - bot logs showed `ConnectionRefusedError: [Errno 10061] Connect call failed ('127.0.0.1', 5432)`;
+  - `pg_isready -h 127.0.0.1 -p 5432` returned no response;
+  - Python socket creation failed with `WinError 10106`;
+  - PostgreSQL service `postgresql-x64-17` was `Stopped`/`Disabled`, and non-admin service start was denied.
+  Runtime scripts were hardened so healthcheck/launcher fail on DB precheck instead of reporting a false PASS.
+  - Current follow-up evidence (2026-05-08): service `postgresql-x64-17` is now `Running`/`Automatic`, but `pg_isready` still reports no response and Python socket creation still fails with `WinError 10106`; likely remaining fix is an administrator-level Winsock reset followed by Windows restart.
 
 ---
 

@@ -2,7 +2,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from kb_bot.bot.ui.keyboards import build_main_menu_keyboard
+from kb_bot.bot.ui.keyboards import build_main_reply_keyboard
 
 router = Router()
 
@@ -21,4 +21,4 @@ def render_restart_text() -> str:
 
 @router.message(Command("start"))
 async def start_handler(message: Message) -> None:
-    await message.answer(render_welcome_text(), reply_markup=build_main_menu_keyboard())
+    await message.answer(render_welcome_text(), reply_markup=build_main_reply_keyboard())

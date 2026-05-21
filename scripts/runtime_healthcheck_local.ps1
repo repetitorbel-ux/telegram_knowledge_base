@@ -1,11 +1,99 @@
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [string]$LogDir = "logs",
-    [int]$MaxLogAgeMinutes = 30
+    [int]$MaxLogAgeMinutes = 30,
+    [string]$EnvFile = ".env"
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location $RepoRoot
+
+function Get-EnvFileValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $line = Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "^\s*$([regex]::Escape($Name))\s*=" } |
+        Select-Object -Last 1
+
+    if (-not $line) {
+        return $null
+    }
+
+    return ($line -replace "^\s*$([regex]::Escape($Name))\s*=\s*", "").Trim().Trim('"').Trim("'")
+}
+
+function Get-DatabaseEndpoint {
+    param(
+        [string]$DatabaseUrl
+    )
+
+    if (-not $DatabaseUrl) {
+        return $null
+    }
+
+    $withoutScheme = $DatabaseUrl -replace "^[^:]+://", ""
+    $authority = ($withoutScheme -split "/", 2)[0]
+    if ($authority -match "@") {
+        $authority = ($authority -split "@")[-1]
+    }
+
+    $hostName = $authority
+    $port = 5432
+    if ($authority -match "^(?<host>.+):(?<port>\d+)$") {
+        $hostName = $Matches["host"]
+        $port = [int]$Matches["port"]
+    }
+
+    [pscustomobject]@{
+        Host = $hostName
+        Port = $port
+    }
+}
+
+function Test-TcpConnect {
+    param(
+        [string]$HostName,
+        [int]$Port,
+        [int]$TimeoutMs = 3000
+    )
+
+    $client = $null
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $async = $client.BeginConnect($HostName, $Port, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            return $false
+        }
+
+        $client.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($client) {
+            $client.Dispose()
+        }
+    }
+}
+
+$databaseUrl = Get-EnvFileValue -Path (Join-Path $RepoRoot $EnvFile) -Name "DATABASE_URL"
+$databaseEndpoint = Get-DatabaseEndpoint -DatabaseUrl $databaseUrl
+if (-not $databaseEndpoint) {
+    Write-Host "RUNTIME_CHECK: FAIL (DATABASE_URL not found or invalid)"
+    exit 1
+}
+
+if (-not (Test-TcpConnect -HostName $databaseEndpoint.Host -Port $databaseEndpoint.Port)) {
+    Write-Host "RUNTIME_CHECK: FAIL (PostgreSQL is unreachable at $($databaseEndpoint.Host):$($databaseEndpoint.Port))"
+    exit 1
+}
 
 $logPath = Join-Path $RepoRoot $LogDir
 if (-not (Test-Path $logPath)) {

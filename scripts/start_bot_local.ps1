@@ -55,6 +55,81 @@ function Test-TelegramApiTcpConnect {
     }
 }
 
+function Get-EnvFileValue {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $line = Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "^\s*$([regex]::Escape($Name))\s*=" } |
+        Select-Object -Last 1
+
+    if (-not $line) {
+        return $null
+    }
+
+    return ($line -replace "^\s*$([regex]::Escape($Name))\s*=\s*", "").Trim().Trim('"').Trim("'")
+}
+
+function Get-DatabaseEndpoint {
+    param(
+        [string]$DatabaseUrl
+    )
+
+    if (-not $DatabaseUrl) {
+        return $null
+    }
+
+    $withoutScheme = $DatabaseUrl -replace "^[^:]+://", ""
+    $authority = ($withoutScheme -split "/", 2)[0]
+    if ($authority -match "@") {
+        $authority = ($authority -split "@")[-1]
+    }
+
+    $hostName = $authority
+    $port = 5432
+    if ($authority -match "^(?<host>.+):(?<port>\d+)$") {
+        $hostName = $Matches["host"]
+        $port = [int]$Matches["port"]
+    }
+
+    [pscustomobject]@{
+        Host = $hostName
+        Port = $port
+    }
+}
+
+function Test-TcpConnect {
+    param(
+        [string]$HostName,
+        [int]$Port,
+        [int]$TimeoutMs = 3000
+    )
+
+    $client = $null
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $async = $client.BeginConnect($HostName, $Port, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            return $false
+        }
+
+        $client.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($client) {
+            $client.Dispose()
+        }
+    }
+}
+
 $attempt = 0
 while ($true) {
     $attempt += 1
@@ -82,6 +157,24 @@ while ($true) {
     if ($badLoopback) {
         if ($MaxRestartAttempts -gt 0 -and $attempt -ge $MaxRestartAttempts) {
             Add-Content -LiteralPath $logFile -Value "[$ts] Max restart attempts reached during DNS precheck. Exiting launcher."
+            exit 1
+        }
+        Add-Content -LiteralPath $logFile -Value "[$ts] Sleeping $RestartDelaySec sec before retry."
+        Start-Sleep -Seconds $RestartDelaySec
+        continue
+    }
+
+    $databaseUrl = Get-EnvFileValue -Path (Join-Path $RepoRoot ".env") -Name "DATABASE_URL"
+    $databaseEndpoint = Get-DatabaseEndpoint -DatabaseUrl $databaseUrl
+    if (-not $databaseEndpoint) {
+        Add-Content -LiteralPath $logFile -Value "[$ts] DB check failed: DATABASE_URL not found or invalid"
+        exit 1
+    }
+
+    if (-not (Test-TcpConnect -HostName $databaseEndpoint.Host -Port $databaseEndpoint.Port)) {
+        Add-Content -LiteralPath $logFile -Value "[$ts] DB check failed: PostgreSQL is unreachable at $($databaseEndpoint.Host):$($databaseEndpoint.Port)"
+        if ($MaxRestartAttempts -gt 0 -and $attempt -ge $MaxRestartAttempts) {
+            Add-Content -LiteralPath $logFile -Value "[$ts] Max restart attempts reached during DB precheck. Exiting launcher."
             exit 1
         }
         Add-Content -LiteralPath $logFile -Value "[$ts] Sleeping $RestartDelaySec sec before retry."

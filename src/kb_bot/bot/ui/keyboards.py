@@ -1,4 +1,5 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from textwrap import wrap
 
 from kb_bot.bot.ui.callbacks import (
     ADD_TOPIC_PREFIX,
@@ -60,30 +61,67 @@ from kb_bot.domain.dto import TopicDTO
 from kb_bot.services.collection_service import SavedViewDTO
 from kb_bot.services.query_service import EntryDetail
 
+MAIN_MENU_SEARCH_TEXT = "🔎 Поиск"
+MAIN_MENU_NEW_TEXT = "📥 Новые"
+MAIN_MENU_ADD_TEXT = "➕ Добавить"
+MAIN_MENU_TOPICS_TEXT = "📚 Темы"
+MAIN_MENU_LIST_TEXT = "📋 Список"
+MAIN_MENU_STATS_TEXT = "📊 Статистика"
+MAIN_MENU_COLLECTIONS_TEXT = "📦 Коллекции"
+MAIN_MENU_EXPORT_TEXT = "📤 Экспорт"
+MAIN_MENU_IMPORT_TEXT = "📥 Импорт"
+MAIN_MENU_BACKUPS_TEXT = "💾 Бэкап"
+MAIN_MENU_HELP_TEXT = "❓ Помощь"
+
 
 def build_main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text=MAIN_MENU_SEARCH_TEXT, callback_data=MENU_SEARCH)],
             [
-                InlineKeyboardButton(text="Добавить", callback_data=MENU_ADD),
-                InlineKeyboardButton(text="Поиск", callback_data=MENU_SEARCH),
+                InlineKeyboardButton(text=MAIN_MENU_NEW_TEXT, callback_data=LIST_NEW),
+                InlineKeyboardButton(text=MAIN_MENU_ADD_TEXT, callback_data=MENU_ADD),
+                InlineKeyboardButton(text=MAIN_MENU_TOPICS_TEXT, callback_data=MENU_TOPICS),
             ],
             [
-                InlineKeyboardButton(text="Список", callback_data=MENU_LIST),
+                InlineKeyboardButton(text=MAIN_MENU_LIST_TEXT, callback_data=MENU_LIST),
+                InlineKeyboardButton(text=MAIN_MENU_STATS_TEXT, callback_data=MENU_STATS),
+                InlineKeyboardButton(text=MAIN_MENU_COLLECTIONS_TEXT, callback_data=MENU_COLLECTIONS),
             ],
             [
-                InlineKeyboardButton(text="Темы", callback_data=MENU_TOPICS),
-                InlineKeyboardButton(text="Коллекции", callback_data=MENU_COLLECTIONS),
+                InlineKeyboardButton(text=MAIN_MENU_EXPORT_TEXT, callback_data=MENU_IMPORT_EXPORT),
+                InlineKeyboardButton(text=MAIN_MENU_IMPORT_TEXT, callback_data=MENU_IMPORT_START),
+                InlineKeyboardButton(text=MAIN_MENU_BACKUPS_TEXT, callback_data=MENU_BACKUPS),
             ],
-            [
-                InlineKeyboardButton(text="Импорт/экспорт", callback_data=MENU_IMPORT_EXPORT),
-                InlineKeyboardButton(text="Бэкапы", callback_data=MENU_BACKUPS),
-            ],
-            [
-                InlineKeyboardButton(text="Статистика", callback_data=MENU_STATS),
-            ],
-            [InlineKeyboardButton(text="Помощь", callback_data=MENU_HELP)],
+            [InlineKeyboardButton(text=MAIN_MENU_HELP_TEXT, callback_data=MENU_HELP)],
         ]
+    )
+
+
+def build_main_reply_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=MAIN_MENU_SEARCH_TEXT)],
+            [
+                KeyboardButton(text=MAIN_MENU_NEW_TEXT),
+                KeyboardButton(text=MAIN_MENU_ADD_TEXT),
+                KeyboardButton(text=MAIN_MENU_TOPICS_TEXT),
+            ],
+            [
+                KeyboardButton(text=MAIN_MENU_LIST_TEXT),
+                KeyboardButton(text=MAIN_MENU_STATS_TEXT),
+                KeyboardButton(text=MAIN_MENU_COLLECTIONS_TEXT),
+            ],
+            [
+                KeyboardButton(text=MAIN_MENU_EXPORT_TEXT),
+                KeyboardButton(text=MAIN_MENU_IMPORT_TEXT),
+                KeyboardButton(text=MAIN_MENU_BACKUPS_TEXT),
+            ],
+            [KeyboardButton(text=MAIN_MENU_HELP_TEXT)],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Сообщение...",
     )
 
 
@@ -180,32 +218,38 @@ def build_entry_results_keyboard(
     extra_rows: list[list[InlineKeyboardButton]] | None = None,
     merge_back_and_main: bool = False,
     merge_pagination_and_back: bool = False,
+    entries_per_row: int = 1,
+    include_status_in_label: bool = True,
 ) -> InlineKeyboardMarkup:
     rows = []
+    current_entry_row: list[InlineKeyboardButton] = []
     pagination_row: list[InlineKeyboardButton] | None = None
+    entries_per_row = max(1, entries_per_row)
     for item in items:
         entry_id = _extract_entry_id(item)
         if entry_id is None:
             continue
         if preview_callback_prefix:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=_render_entry_button_label(item),
-                        callback_data=f"{preview_callback_prefix}{entry_id}",
-                    ),
-                ]
-            )
-            continue
-
-        rows.append(
-            [
+            current_entry_row.append(
                 InlineKeyboardButton(
-                    text=_render_entry_button_label(item),
+                    text=_render_entry_button_label(item, include_status=include_status_in_label),
+                    callback_data=f"{preview_callback_prefix}{entry_id}",
+                )
+            )
+        else:
+            current_entry_row.append(
+                InlineKeyboardButton(
+                    text=_render_entry_button_label(item, include_status=include_status_in_label),
                     callback_data=_build_entry_view_callback(entry_id, entry_back_callback),
                 )
-            ]
-        )
+            )
+
+        if len(current_entry_row) == entries_per_row:
+            rows.append(current_entry_row)
+            current_entry_row = []
+
+    if current_entry_row:
+        rows.append(current_entry_row)
 
     if page is not None and page_callback_prefix and (has_prev_page or has_next_page):
         pagination_row = []
@@ -465,9 +509,42 @@ def build_entry_preview_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _render_entry_button_label(item: object) -> str:
-    label = f"{item.title} [{item.status_name}]"
-    return label[:64]
+def _render_entry_button_label(item: object, *, include_status: bool = True) -> str:
+    label = item.title
+    if include_status:
+        label = f"{item.title} [{item.status_name}]"
+    return _wrap_button_text(label, max_line_length=28, max_lines=2, hard_limit=64)
+
+
+def _wrap_button_text(
+    text: str,
+    *,
+    max_line_length: int,
+    max_lines: int,
+    hard_limit: int,
+) -> str:
+    compact = " ".join((text or "").split())
+    if not compact:
+        return ""
+    lines = wrap(
+        compact,
+        width=max_line_length,
+        break_long_words=True,
+        break_on_hyphens=False,
+    )
+    clipped = lines[:max_lines]
+    wrapped = "\n".join(clipped)
+
+    if len(wrapped) > hard_limit:
+        wrapped = wrapped[:hard_limit].rstrip()
+
+    if len(lines) > max_lines or wrapped != compact:
+        if len(wrapped) >= hard_limit:
+            wrapped = wrapped[: max(0, hard_limit - 3)].rstrip()
+        if not wrapped.endswith("..."):
+            wrapped = f"{wrapped}..."
+
+    return wrapped
 
 
 def _extract_entry_id(item: object):
@@ -599,8 +676,8 @@ def build_topic_entries_actions_rows(topic_id: str) -> list[list[InlineKeyboardB
         [
             InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}"),
             InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}"),
-            InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}"),
-        ]
+        ],
+        [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
     ]
 
 
@@ -651,11 +728,21 @@ def build_topics_tree_keyboard(
     has_prev_page: bool = False,
     has_next_page: bool = False,
     page_callback_prefix: str | None = None,
+    topic_counts_by_id: dict[object, int] | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
-        [InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE)]
+        [
+            InlineKeyboardButton(text="Добавить корневую тему", callback_data=MENU_TOPIC_CREATE),
+            InlineKeyboardButton(text="Обновить", callback_data=MENU_TOPICS),
+        ],
+        [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
     ]
     child_row_buffer: list[InlineKeyboardButton] = []
+    topic_counts_by_id = topic_counts_by_id or {}
+
+    def _topic_label(topic: TopicDTO) -> str:
+        count = int(topic_counts_by_id.get(topic.id, 0))
+        return f"{_render_topic_button_label(topic)} ({count})"
 
     def _flush_child_row_buffer() -> None:
         nonlocal child_row_buffer
@@ -671,7 +758,7 @@ def build_topics_tree_keyboard(
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"{depth_indent}{toggle_icon} {_render_topic_button_label(topic)}",
+                        text=f"{depth_indent}{toggle_icon} {_topic_label(topic)}",
                         callback_data=f"{TOPIC_TOGGLE_PREFIX}{topic.id}",
                     ),
                 ]
@@ -696,7 +783,7 @@ def build_topics_tree_keyboard(
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                        text=f"{depth_indent}{_topic_label(topic)}",
                         callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
                     )
                 ]
@@ -705,7 +792,7 @@ def build_topics_tree_keyboard(
 
         child_row_buffer.append(
             InlineKeyboardButton(
-                text=f"{depth_indent}{_render_topic_button_label(topic)}",
+                text=f"{depth_indent}{_topic_label(topic)}",
                 callback_data=f"{TOPIC_VIEW_PREFIX}{topic.id}",
             )
         )
@@ -733,7 +820,6 @@ def build_topics_tree_keyboard(
         if pagination_row:
             rows.append(pagination_row)
 
-    rows.append([InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -745,25 +831,33 @@ def build_topic_detail_keyboard(
 ) -> InlineKeyboardMarkup:
     entries_callback = topic_entries_callback or f"{TOPIC_ENTRIES_PAGE_PREFIX}{topic_id}:0"
     rows: list[list[InlineKeyboardButton]] = []
+    quick_entry_row: list[InlineKeyboardButton] = []
     if quick_entries:
         for entry in quick_entries[:5]:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=_render_entry_button_label(entry),
-                        callback_data=f"{TOPIC_ENTRY_PREVIEW_PREFIX}{entry.entry_id}",
-                    ),
-                ]
+            quick_entry_row.append(
+                InlineKeyboardButton(
+                    text=_render_entry_button_label(entry),
+                    callback_data=f"{TOPIC_ENTRY_PREVIEW_PREFIX}{entry.entry_id}",
+                )
             )
+            if len(quick_entry_row) == 2:
+                rows.append(quick_entry_row)
+                quick_entry_row = []
+        if quick_entry_row:
+            rows.append(quick_entry_row)
 
     rows.extend(
         [
             [InlineKeyboardButton(text="Открыть все записи темы", callback_data=entries_callback)],
-            [InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}")],
-            [InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS)],
-            [InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN)],
+            [
+                InlineKeyboardButton(text="Переименовать тему", callback_data=f"{TOPIC_RENAME_PREFIX}{topic_id}"),
+                InlineKeyboardButton(text="Добавить подтему", callback_data=f"{TOPIC_CREATE_CHILD_PREFIX}{topic_id}"),
+                InlineKeyboardButton(text="Удалить тему", callback_data=f"{TOPIC_DELETE_PREFIX}{topic_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="Назад к списку тем", callback_data=MENU_TOPICS),
+                InlineKeyboardButton(text="В главное меню", callback_data=MENU_MAIN),
+            ],
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)

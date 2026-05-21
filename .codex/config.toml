@@ -1,11 +1,11 @@
 # .codex/config.toml
 # Project-scoped Codex configuration. Codex loads project config only for trusted repos.
 
-model = "o4-mini"
+model = "gpt-5.4"
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 web_search = "cached"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 personality = "pragmatic"
 
 [shell_environment_policy]
