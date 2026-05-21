@@ -20,5 +20,5 @@ def test_forward_save_router_has_priority_over_fsm_message_handlers() -> None:
     root = build_router(None)
     names = [_first_message_handler_name(sub_router) for sub_router in root.sub_routers]
     forward_index = names.index("save_forward_handler")
-    menu_index = names.index("topic_create_name")
+    menu_index = names.index("main_reply_button")
     assert forward_index < menu_index
