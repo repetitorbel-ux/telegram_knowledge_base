@@ -8,8 +8,8 @@
 
 ## Current Status: Phase 1 Complete → Phase 2 In Progress
 
-**Date:** 2026-04-23
-**Active branch:** `feature/p2-003-semantic-search-design` (P2-003 accepted and marked Delivered)
+**Date:** 2026-05-21
+**Active branch:** `feature/desktop-main-reply-menu` (PR #51 open, CI green, ready to merge)
 
 ### Phase 1 — Done ✅
 All 42 tasks completed. Bot fully operational:
@@ -33,6 +33,17 @@ Priority order (suggested):
 2. **P2-006** — Webhook mode (**Deferred by operator decision on 2026-04-22; keep polling mode for now**).
 
 ### Latest Progress in Phase 2 (Current Session) ✅
+- **P2-UX-desktop** — Desktop reply menu + UX polish (PR #51, 2026-05-21):
+  - Added persistent reply-keyboard main menu (`build_main_reply_keyboard`) — кнопки всегда видны в Telegram Desktop.
+  - Per-topic entry counters in topics tree.
+  - Topic detail keyboard: управляющие кнопки в одну строку, записи — по 2 в ряд.
+  - Topics tree: кнопка «Обновить», «В главное меню» перенесена вверх.
+  - Help handler с полным списком команд.
+  - Runtime scripts hardened: `start_bot_local.ps1`, `runtime_healthcheck_local.ps1`, `run_watchdog_hidden.pyw`.
+  - Tests updated: `test_ui_menu.py`, `test_router.py`.
+  - CI: 222 passed, 0 failed.
+  - Status: PR #51 open, CI green, awaiting merge.
+
 - **P2-003** — semantic search foundation delivered on 2026-04-23:
   - Added migration `0007_semantic_embeddings` (`vector` extension + `knowledge_entry_embeddings` table + indexes).
   - Added migration `0008_embedding_dim_768` for local Ollama mode (`vector(768)`).
