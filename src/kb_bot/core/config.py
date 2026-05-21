@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     backup_dir: str = Field(default="backups", alias="BACKUP_DIR")
     pg_dump_bin: str = Field(default="pg_dump", alias="PG_DUMP_BIN")
     pg_restore_bin: str = Field(default="pg_restore", alias="PG_RESTORE_BIN")
+    psql_bin: str = Field(default="psql", alias="PSQL_BIN")
+    createdb_bin: str = Field(default="createdb", alias="CREATEDB_BIN")
     restore_timeout_sec: int = Field(default=1800, alias="RESTORE_TIMEOUT_SEC")
     admin_api_enabled: bool = Field(default=False, alias="ADMIN_API_ENABLED")
     admin_api_host: str = Field(default="127.0.0.1", alias="ADMIN_API_HOST")
