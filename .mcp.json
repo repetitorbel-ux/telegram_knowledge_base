@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "kb-bot": {
+      "command": "python",
+      "args": ["-m", "kb_bot.mcp_server.server"],
+      "cwd": ".",
+      "env": {
+        "DATABASE_URL": "postgresql+asyncpg://postgres:postgres@localhost:5432/tg_kb"
+      }
+    }
+  }
+}
