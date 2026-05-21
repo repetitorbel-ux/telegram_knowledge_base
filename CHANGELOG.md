@@ -2,7 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
-## 2026-05-21
+## 2026-05-21 (MCP Server)
+
+### Added
+
+- MCP server (`src/kb_bot/mcp_server/`) with 8 tools for LLM access to the knowledge base via Model Context Protocol (stdio transport).
+  - `search_entries` — full-text search by query with optional topic filter.
+  - `list_entries` — paginated listing of all entries.
+  - `get_entry` — fetch a single entry by UUID.
+  - `get_related` — fetch semantically/structurally related entries.
+  - `list_topics` — topics tree with per-topic entry counts.
+  - `get_topic_entries` — entries for a specific topic.
+  - `get_stats` — DB statistics (counts, top topics, recent entries).
+  - `semantic_search` — embedding-based search (conditional on `SEMANTIC_SEARCH_ENABLED`).
+- `.mcp.json` — Claude Desktop / Claude Codex config for the MCP server.
+- `src/kb_bot/mcp_server/README.md` — env vars, usage, Claude config.
+- `src/kb_bot/mcp_server/evals.xml` — 10 evaluation questions for LLM tool testing.
+- `tests/test_mcp_tools.py` — 11 unit tests for all tools (235 total, 0 failed).
+- `pyproject.toml`: added `mcp>=1.0.0,<2.0.0`, upgraded `pydantic` to `>=2.11` compatibility.
+
+### Restore swap strategy (PR #52)
+- `BackupService.restore_backup` now uses safe swap strategy: restore into `<db>_restore_tmp`, then rename target → `<db>_old_<ts>`, rename tmp → target. Old DB retained for manual rollback.
+- Added `psql_bin` / `createdb_bin` config settings (`PSQL_BIN`, `CREATEDB_BIN`).
+- Tests updated: swap assertions added, cleanup-on-failure scenario covered.
+
+---
+
+## 2026-05-21 (Desktop reply menu — PR #51)
 
 ### Added
 
