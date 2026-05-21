@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<evals>
+  <eval id="1">
+    <question>How many entries are in the knowledge base, and how many are in the "New" (inbox) status?</question>
+    <expected>Call get_stats. Read total_entries and by_status["New"] (= inbox_size). Report both numbers.</expected>
+  </eval>
+
+  <eval id="2">
+    <question>Find all entries about Python and show me the first 3 results with their status and URL.</question>
+    <expected>Call search_entries(query="Python", limit=3). Return id, title, status, url for each result.</expected>
+  </eval>
+
+  <eval id="3">
+    <question>What topics exist in the knowledge base? Show the tree with entry counts.</question>
+    <expected>Call list_topics(). Return full list with name, full_path, level, entry_count for each topic.</expected>
+  </eval>
+
+  <eval id="4">
+    <question>Show me all entries with status "To Read" in the "programming" topic area (including subtopics).</question>
+    <expected>
+      1. Call list_topics() to find the topic_id for "programming" (or use topic_path).
+      2. Call list_entries(status="To Read", topic_id="&lt;uuid&gt;").
+      Return results with id, title, url.
+    </expected>
+  </eval>
+
+  <eval id="5">
+    <question>Get the full details of entry &lt;some-uuid&gt; — I want to see its notes, URL, all topics it belongs to.</question>
+    <expected>Call get_entry(entry_id="&lt;uuid&gt;"). Return title, url, notes, status, primary_topic, secondary_topics, saved_date.</expected>
+  </eval>
+
+  <eval id="6">
+    <question>I searched for "machine learning" and got 0 results with search_entries. What should I try next?</question>
+    <expected>
+      Suggest: 1) Try different keywords ("ML", "neural network", "AI"). 
+      2) If semantic search is available, call semantic_search("machine learning").
+      3) Browse list_topics to find relevant topic and call get_topic_entries.
+    </expected>
+  </eval>
+
+  <eval id="7">
+    <question>I tried get_entry with UUID "not-a-real-uuid" and got an error. How do I find the right entry ID?</question>
+    <expected>
+      The error says "Invalid entry_id UUID". 
+      Suggest: call search_entries or list_entries to browse entries and find the correct UUID.
+    </expected>
+  </eval>
+
+  <eval id="8">
+    <question>List all entries in the knowledge base. There are 200 entries. Show me entries 21-40.</question>
+    <expected>Call list_entries(limit=20, offset=20). Return results for page 2.</expected>
+  </eval>
+
+  <eval id="9">
+    <question>Find entries related to the entry with ID &lt;some-uuid&gt; and summarise what the top 3 related entries are about.</question>
+    <expected>
+      1. Call get_related(entry_id="&lt;uuid&gt;", limit=3).
+      2. For each result, optionally call get_entry to get description.
+      Summarise the titles and topics of the top 3 related entries.
+    </expected>
+  </eval>
+
+  <eval id="10">
+    <question>I want to understand my knowledge base health: how many entries are verified vs. still in inbox? 
+    Then show me the 5 most recently saved entries that are still "New".</question>
+    <expected>
+      1. Call get_stats() — read by_status to get "Verified" and "New" counts, verified_coverage.
+      2. Call list_entries(status="New", limit=5) — return 5 newest New entries.
+      Report health summary and list of 5 entries.
+    </expected>
+  </eval>
+</evals>
